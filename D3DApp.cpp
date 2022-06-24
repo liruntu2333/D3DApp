@@ -410,7 +410,7 @@ bool D3DApp::InitDirect3D()
 	mDsvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS MSQualityLevels;
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS MSQualityLevels{};
 	MSQualityLevels.Format = mBackBufferFormat;
 	MSQualityLevels.SampleCount = 4;
 	MSQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -436,7 +436,7 @@ bool D3DApp::InitDirect3D()
 
 void D3DApp::CreateCommandObjects()
 {
-	D3D12_COMMAND_QUEUE_DESC commandQueueDesc;
+	D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
 	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
@@ -460,7 +460,7 @@ void D3DApp::CreateCommandObjects()
 
 void D3DApp::CreateSwapChain()
 {
-	DXGI_SWAP_CHAIN_DESC swapChainDesc;
+	DXGI_SWAP_CHAIN_DESC swapChainDesc{};
 	swapChainDesc.BufferDesc.Width = mClientWidth;
 	swapChainDesc.BufferDesc.Height = mClientHeight;
 	swapChainDesc.BufferDesc.RefreshRate.Numerator = 60;
