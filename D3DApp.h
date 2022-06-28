@@ -42,9 +42,6 @@ public:
 		return static_cast<float>(mClientWidth) / mClientHeight;
 	}
 
-	bool Get4xMSAAState()const { return m4xMSAAState; }
-	void Set4XMSAAState(bool value);
-
 	int Run();
 
 	virtual bool Initialize();
@@ -95,9 +92,6 @@ protected:
 	bool      mMaximized = false;  // is the application maximized?
 	bool      mResizing = false;   // are the resize bars being dragged?
 	bool      mFullscreenState = false;// fullscreen enabled
-
-	bool      m4xMSAAState = false;    // 4X MSAA enabled
-	UINT      m4xMSAAQuality = 0;      // quality level of 4X MSAA
 
 	GameTimer mTimer;
 

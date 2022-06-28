@@ -5,9 +5,9 @@ using namespace DX;
 using Microsoft::WRL::ComPtr;
 
 DxException::DxException(HRESULT hr,
-                         const std::wstring& functionName,
-                         const std::wstring& filename,
-                         int lineNumber) :
+	const std::wstring& functionName,
+	const std::wstring& filename,
+	int lineNumber) :
 	ErrorCode(hr),
 	FunctionName(functionName),
 	Filename(filename),
@@ -51,9 +51,9 @@ void MeshGeometry::DisposeUploaders()
 }
 
 Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
-	const std::wstring& filename, 
+	const std::wstring& filename,
 	const D3D_SHADER_MACRO* defines,
-	const std::string& entryPoint, 
+	const std::string& entryPoint,
 	const std::string& target)
 {
 	UINT compileFlags = 0;
@@ -66,7 +66,7 @@ Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
 	ComPtr<ID3DBlob> byteCode = nullptr;
 	ComPtr<ID3DBlob> errors;
 	hr = D3DCompileFromFile(filename.c_str(), defines, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-		entryPoint.c_str(), target.c_str(), compileFlags, 0, 
+		entryPoint.c_str(), target.c_str(), compileFlags, 0,
 		byteCode.GetAddressOf(), errors.GetAddressOf());
 
 	if (errors != nullptr)
@@ -80,10 +80,10 @@ Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
 }
 
 Microsoft::WRL::ComPtr<ID3D12Resource> DX::CreateDefaultBuffer(
-	ID3D12Device* device, 
+	ID3D12Device* device,
 	ID3D12GraphicsCommandList* cmdList,
-	const void* initData, 
-	UINT64 byteSize, 
+	const void* initData,
+	UINT64 byteSize,
 	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer)
 {
 	ComPtr<ID3D12Resource> defaultBuffer;
@@ -118,7 +118,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> DX::CreateDefaultBuffer(
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 	cmdList->ResourceBarrier(1, &barrier);
 
-	UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 
+	UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(),
 		0, 0, 1, &subresourceData);
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),

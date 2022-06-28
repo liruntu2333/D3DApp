@@ -33,7 +33,7 @@ namespace DX
 	};
 
 	template <typename T>
-	UploadBuffer<T>::UploadBuffer(ID3D12Device* device, UINT elementCount, bool isConstantBuffer):
+	UploadBuffer<T>::UploadBuffer(ID3D12Device* device, UINT elementCount, bool isConstantBuffer) :
 		mIsConstantBuffer(isConstantBuffer)
 	{
 		mElementByteSize = sizeof(T);

@@ -16,7 +16,7 @@ MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 D3DApp* D3DApp::mApp = nullptr;
 
-D3DApp::D3DApp(HINSTANCE hInstance): mhAppInst(hInstance)
+D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance)
 {
 	assert(mApp == nullptr);
 	mApp = this;
@@ -28,15 +28,6 @@ D3DApp::~D3DApp()
 	{
 		FlushCommandQueue();
 	}
-}
-
-void D3DApp::Set4XMSAAState(bool value)
-{
-	if (m4xMSAAState == value) return;
-
-	m4xMSAAState = value;
-	CreateSwapChain();
-	OnResize();
 }
 
 int D3DApp::Run()
@@ -284,8 +275,8 @@ void D3DApp::OnResize()
 	depthStencilDesc.DepthOrArraySize = 1;
 	depthStencilDesc.MipLevels = 1;
 	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	depthStencilDesc.SampleDesc.Count = m4xMSAAState ? 4 : 1;
-	depthStencilDesc.SampleDesc.Quality = m4xMSAAState ? m4xMSAAQuality - 1 : 0;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
 	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -409,19 +400,6 @@ bool D3DApp::InitDirect3D()
 	mRtvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	mDsvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS MSQualityLevels{};
-	MSQualityLevels.Format = mBackBufferFormat;
-	MSQualityLevels.SampleCount = 4;
-	MSQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-	MSQualityLevels.NumQualityLevels = 0;
-	ThrowIfFailed(mD3DDevice->CheckFeatureSupport(
-		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-		&MSQualityLevels,
-		sizeof(MSQualityLevels)));
-
-	m4xMSAAQuality = MSQualityLevels.NumQualityLevels;
-	assert(m4xMSAAQuality > 0 && "Unexpected MSAA quality level.");
 
 #ifdef _DEBUG
 	LogAdapters();

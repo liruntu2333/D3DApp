@@ -113,7 +113,7 @@ void MyGame::OnResize()
 	D3DApp::OnResize();
 
 	const XMMATRIX proj = XMMatrixPerspectiveFovLH(
-		0.25f * MathHelper::Pi, AspectRatio(), 
+		0.25f * MathHelper::Pi, AspectRatio(),
 		1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, proj);
 }
@@ -155,17 +155,17 @@ void MyGame::Draw(const GameTimer& gt)
 
 	auto bbvHandle = CurrentBackBufferView();
 	auto dsvHandle = DepthStencilView();
-	mCommandList->ClearRenderTargetView(bbvHandle, 
-		Colors::Black, 
+	mCommandList->ClearRenderTargetView(bbvHandle,
+		Colors::Black,
 		0, nullptr);
-	mCommandList->ClearDepthStencilView(dsvHandle, 
-		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-		1.0f, 0.0f,
+	mCommandList->ClearDepthStencilView(dsvHandle,
+		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+		1.0f, 0,
 		0, nullptr);
 
-	mCommandList->OMSetRenderTargets(1, 
+	mCommandList->OMSetRenderTargets(1,
 		&bbvHandle,
-		true, 
+		true,
 		&dsvHandle);
 
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
@@ -249,7 +249,7 @@ void MyGame::BuildDescriptorHeaps()
 	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	cbvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(mD3DDevice->CreateDescriptorHeap(
-		&cbvHeapDesc, 
+		&cbvHeapDesc,
 		IID_PPV_ARGS(mCbvHeap.GetAddressOf())));
 }
 
@@ -260,10 +260,10 @@ void MyGame::BuildConstantBuffers()
 	UINT objConstBuffByteSize = CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
 	D3D12_GPU_VIRTUAL_ADDRESS constBuffAddress = mObjConstBuff->Resource()->GetGPUVirtualAddress();
-	UINT boxConstBuffIndex = 0;
+	UINT64 boxConstBuffIndex = 0;
 	constBuffAddress += boxConstBuffIndex * objConstBuffByteSize;
 
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 	cbvDesc.BufferLocation = constBuffAddress;
 	cbvDesc.SizeInBytes = objConstBuffByteSize;
 
@@ -308,7 +308,7 @@ void MyGame::BuildShadersAndInputLayout()
 	mVSbyteCode = CompileShader(L"shader/color.hlsl", nullptr, "VS", "vs_5_0");
 	mPSbyteCode = CompileShader(L"shader/color.hlsl", nullptr, "PS", "ps_5_0");
 
-	mInputLayout = 
+	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -317,7 +317,7 @@ void MyGame::BuildShadersAndInputLayout()
 
 void MyGame::BuildBoxGeometry()
 {
-	std::array<Vertex, 8> vertices = 
+	std::array<Vertex, 8> vertices =
 	{
 		Vertex{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)},
 		Vertex{ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)},
@@ -363,7 +363,7 @@ void MyGame::BuildBoxGeometry()
 	mBoxGeometry->Name = "boxGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, mBoxGeometry->VertexBufferCPU.GetAddressOf()));
-	CopyMemory(mBoxGeometry->VertexBufferCPU->GetBufferPointer(), 
+	CopyMemory(mBoxGeometry->VertexBufferCPU->GetBufferPointer(),
 		vertices.data(), vbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, mBoxGeometry->IndexBufferCPU.GetAddressOf()));
@@ -371,7 +371,7 @@ void MyGame::BuildBoxGeometry()
 		indices.data(), ibByteSize);
 
 	mBoxGeometry->VertexBufferGPU = DX::CreateDefaultBuffer(
-		mD3DDevice.Get(), mCommandList.Get(), 
+		mD3DDevice.Get(), mCommandList.Get(),
 		vertices.data(), vbByteSize,
 		mBoxGeometry->VertexBufferUploader);
 
@@ -398,29 +398,29 @@ void MyGame::BuildPipelineStateObject()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 
 	psoDesc.InputLayout.pInputElementDescs = mInputLayout.data();
-	psoDesc.InputLayout.NumElements = mInputLayout.size();
+	psoDesc.InputLayout.NumElements = static_cast<UINT>(mInputLayout.size());
 
 	psoDesc.pRootSignature = mRootSignature.Get();
 
-	psoDesc.VS.pShaderBytecode	= mVSbyteCode->GetBufferPointer();
-	psoDesc.VS.BytecodeLength	= mVSbyteCode->GetBufferSize();
+	psoDesc.VS.pShaderBytecode = mVSbyteCode->GetBufferPointer();
+	psoDesc.VS.BytecodeLength = mVSbyteCode->GetBufferSize();
 
-	psoDesc.PS.pShaderBytecode	= mPSbyteCode->GetBufferPointer();
-	psoDesc.PS.BytecodeLength	= mPSbyteCode->GetBufferSize();
+	psoDesc.PS.pShaderBytecode = mPSbyteCode->GetBufferPointer();
+	psoDesc.PS.BytecodeLength = mPSbyteCode->GetBufferSize();
 
-	psoDesc.RasterizerState			= CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	psoDesc.BlendState				= CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState		= CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.SampleMask				= UINT_MAX;
-	psoDesc.PrimitiveTopologyType	= D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets		= 1;
-	psoDesc.RTVFormats[0]			= mBackBufferFormat;
-	psoDesc.SampleDesc.Count		= m4xMSAAState ? 4 : 1;
-	psoDesc.SampleDesc.Quality		= m4xMSAAState ? (m4xMSAAQuality - 1) : 0;
-	psoDesc.DSVFormat				= mDepthStencilFormat;
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = mBackBufferFormat;
+	psoDesc.SampleDesc.Count = 1; // m4xMSAAState ? 4 : 1;
+	psoDesc.SampleDesc.Quality = 0;//m4xMSAAState ? (m4xMSAAQuality - 1) : 0;
+	psoDesc.DSVFormat = mDepthStencilFormat;
 
 	ThrowIfFailed(mD3DDevice->CreateGraphicsPipelineState(
-	 &psoDesc, IID_PPV_ARGS(mPso.GetAddressOf())));
+		&psoDesc, IID_PPV_ARGS(mPso.GetAddressOf())));
 }
 
 int WINAPI WinMain(
