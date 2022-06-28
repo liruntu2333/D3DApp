@@ -32,3 +32,4 @@
 *.app
 /.vs/D3DApp
 /x64
+/packages/Microsoft.Windows.CppWinRT.2.0.210806.1

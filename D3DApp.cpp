@@ -1,4 +1,4 @@
-#include "d3dApp.h"
+#include "D3DApp.h"
 
 #include <WindowsX.h>
 
@@ -57,7 +57,9 @@ int D3DApp::Run()
 
 			if (!mAppPaused)
 			{
+#ifdef _DEBUG
 				CalculateFrameStats();
+#endif
 				Update(mTimer);
 				Draw(mTimer);
 			}
@@ -227,7 +229,7 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
-	THROW_IF_FAILED(mD3DDevice->CreateDescriptorHeap(
+	ThrowIfFailed(mD3DDevice->CreateDescriptorHeap(
 		&rtvHeapDesc,
 		IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
@@ -236,7 +238,7 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
-	THROW_IF_FAILED(mD3DDevice->CreateDescriptorHeap(
+	ThrowIfFailed(mD3DDevice->CreateDescriptorHeap(
 		&dsvHeapDesc,
 		IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
@@ -248,15 +250,15 @@ void D3DApp::OnResize()
 	assert(mDirectCmdListAlloc);
 
 	FlushCommandQueue();
-	THROW_IF_FAILED(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	for (auto& swapChainBuffer : mSwapChainBuffer)
 	{
-		THROW_IF_FAILED(swapChainBuffer.Reset());
+		ThrowIfFailed(swapChainBuffer.Reset());
 	}
 	mDepthStencilBuffer.Reset();
 
-	THROW_IF_FAILED(mSwapChain->ResizeBuffers(
+	ThrowIfFailed(mSwapChain->ResizeBuffers(
 		SWAP_CHAIN_BUFFER_COUNT,
 		mClientWidth, mClientHeight,
 		mBackBufferFormat,
@@ -292,10 +294,9 @@ void D3DApp::OnResize()
 	optColor.DepthStencil.Depth = 1.0f;
 	optColor.DepthStencil.Stencil = 0;
 
-	auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-
-	THROW_IF_FAILED(mD3DDevice->CreateCommittedResource(
-		&heapProperties,
+	auto heapTypeDefault = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(mD3DDevice->CreateCommittedResource(
+		&heapTypeDefault,
 		D3D12_HEAP_FLAG_NONE,
 		&depthStencilDesc,
 		D3D12_RESOURCE_STATE_COMMON,
@@ -313,14 +314,13 @@ void D3DApp::OnResize()
 		&dsvDesc,
 		DepthStencilView());
 
-	auto resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		mDepthStencilBuffer.Get(),
 		D3D12_RESOURCE_STATE_COMMON,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	mCommandList->ResourceBarrier(1, &barrier);
 
-	mCommandList->ResourceBarrier(1, &resourceBarrier);
-
-	THROW_IF_FAILED(mCommandList->Close());
+	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
 	FlushCommandQueue();
@@ -380,13 +380,13 @@ bool D3DApp::InitDirect3D()
 #ifdef _DEBUG
 	{
 		ComPtr<ID3D12Debug> debugController;
-		THROW_IF_FAILED(D3D12GetDebugInterface(
+		ThrowIfFailed(D3D12GetDebugInterface(
 			IID_PPV_ARGS(debugController.GetAddressOf())));
 		debugController->EnableDebugLayer();
 	}
 #endif
 
-	THROW_IF_FAILED(CreateDXGIFactory1(IID_PPV_ARGS(mDXGIFactory.GetAddressOf())));
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(mDXGIFactory.GetAddressOf())));
 
 	HRESULT hardwareResult = D3D12CreateDevice(
 		nullptr,
@@ -396,14 +396,14 @@ bool D3DApp::InitDirect3D()
 	if (FAILED(hardwareResult))
 	{
 		ComPtr<IDXGIAdapter> pWarpAdapter = nullptr;
-		THROW_IF_FAILED(mDXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
-		THROW_IF_FAILED(
+		ThrowIfFailed(mDXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+		ThrowIfFailed(
 			D3D12CreateDevice(pWarpAdapter.Get(),
 				D3D_FEATURE_LEVEL_11_0,
 				IID_PPV_ARGS(mD3DDevice.GetAddressOf())));
 	}
 
-	THROW_IF_FAILED(mD3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+	ThrowIfFailed(mD3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(mFence.GetAddressOf())));
 
 	mRtvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -415,7 +415,7 @@ bool D3DApp::InitDirect3D()
 	MSQualityLevels.SampleCount = 4;
 	MSQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
 	MSQualityLevels.NumQualityLevels = 0;
-	THROW_IF_FAILED(mD3DDevice->CheckFeatureSupport(
+	ThrowIfFailed(mD3DDevice->CheckFeatureSupport(
 		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
 		&MSQualityLevels,
 		sizeof(MSQualityLevels)));
@@ -442,13 +442,13 @@ void D3DApp::CreateCommandObjects()
 	commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
 	commandQueueDesc.NodeMask = 0;
 
-	THROW_IF_FAILED(mD3DDevice->CreateCommandQueue(&commandQueueDesc,
+	ThrowIfFailed(mD3DDevice->CreateCommandQueue(&commandQueueDesc,
 		IID_PPV_ARGS(mCommandQueue.GetAddressOf())));
 
-	THROW_IF_FAILED(mD3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+	ThrowIfFailed(mD3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
 
-	THROW_IF_FAILED(mD3DDevice->CreateCommandList(
+	ThrowIfFailed(mD3DDevice->CreateCommandList(
 		0,
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		mDirectCmdListAlloc.Get(),
@@ -477,7 +477,7 @@ void D3DApp::CreateSwapChain()
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-	THROW_IF_FAILED(mDXGIFactory->CreateSwapChain(
+	ThrowIfFailed(mDXGIFactory->CreateSwapChain(
 		mCommandQueue.Get(),
 		&swapChainDesc,
 		mSwapChain.GetAddressOf()));
@@ -486,12 +486,12 @@ void D3DApp::CreateSwapChain()
 void D3DApp::FlushCommandQueue()
 {
 	mCurrentFence++;
-	THROW_IF_FAILED(mCommandQueue->Signal(mFence.Get(), mCurrentFence))
+	ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence))
 		if (mFence->GetCompletedValue() < mCurrentFence)
 		{
 			const HANDLE eventHandle =
 				CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
-			THROW_IF_FAILED(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
+			ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
 			if (eventHandle != nullptr)
 			{
 				WaitForSingleObject(eventHandle, INFINITE);

@@ -1,14 +1,14 @@
 ﻿/*****************************************************************//**
  * \file   d3dApp.h
  * \brief  a d3dApp base class, initializing window
- *			and dx12 pipeline, shutdown stuffs
+ *			and dx12, shutdown stuffs
  *
  * \author LirRuntu liruntu2333@gmail.com
  * \date   June 2022
  *********************************************************************/
 #pragma once
 
-#if defined(DEBUG) || defined(_DEBUG)
+#if defined _DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
 #endif
@@ -112,7 +112,7 @@ protected:
 	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
 	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
 
-	static constexpr UINT SWAP_CHAIN_BUFFER_COUNT = 2;
+	static constexpr int SWAP_CHAIN_BUFFER_COUNT = 2;
 	int mCurrBackBuffer = 0;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SWAP_CHAIN_BUFFER_COUNT];
 	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
