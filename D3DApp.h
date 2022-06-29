@@ -49,7 +49,7 @@ public:
 
 protected:
 	virtual void CreateRtvAndDsvDescriptorHeaps();
-	void OnResize();
+	virtual void OnResize();
 	virtual void Update(const GameTimer& gt) = 0;
 	virtual void Draw(const GameTimer& gt) = 0;
 
@@ -85,13 +85,13 @@ protected:
 
 	static D3DApp* mApp;
 
-	HINSTANCE mhAppInst = nullptr; // application instance handle
-	HWND      mhMainWnd = nullptr; // main window handle
-	bool      mAppPaused = false;  // is the application paused?
-	bool      mMinimized = false;  // is the application minimized?
-	bool      mMaximized = false;  // is the application maximized?
-	bool      mResizing = false;   // are the resize bars being dragged?
-	bool      mFullscreenState = false;// fullscreen enabled
+	HINSTANCE mhAppInst        = nullptr; 
+	HWND      mhMainWnd        = nullptr; 
+	bool      mAppPaused       = false;
+	bool      mMinimized       = false;
+	bool      mMaximized       = false;
+	bool      mResizing        = false;
+	bool      mFullscreenState = false;
 
 	GameTimer mTimer;
 

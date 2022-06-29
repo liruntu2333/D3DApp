@@ -29,6 +29,11 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProjection = MathHelper::Identity4X4();
 };
 
+namespace 
+{
+	constexpr int SAMPLE_COUNT_MAX = 8;
+}
+
 class MyGame final : public D3DApp
 {
 public:
@@ -39,16 +44,16 @@ public:
 	MyGame& operator=(const MyGame&) = delete;
 	MyGame& operator=(MyGame&&) = delete;
 
-	virtual bool Initialize() override;
+	bool Initialize() override;
 
 private:
-	void OnResize();
+	void OnResize() override;
 	void Update(const GameTimer& gt) override;
 	void Draw(const GameTimer& gt) override;
 
-	virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
-	virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
-	virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
+	void OnMouseDown(WPARAM btnState, int x, int y) override;
+	void OnMouseMove(WPARAM btnState, int x, int y) override;
+	void OnMouseUp(WPARAM btnState, int x, int y) override;
 
 	void BuildDescriptorHeaps();
 	void BuildConstantBuffers();
@@ -64,7 +69,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mMsaaRTVDescHeap;
 	ComPtr<ID3D12DescriptorHeap> mMsaaDSVDescHeap;
 
-	unsigned int mSampleCount;
+	unsigned int mSampleCount = 0;
 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
@@ -76,7 +81,7 @@ private:
 	ComPtr<ID3DBlob> mVSbyteCode = nullptr;
 	ComPtr<ID3DBlob> mPSbyteCode = nullptr;
 
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout{};
 	ComPtr<ID3D12PipelineState> mPso{}; // pipeline state objects
 
 	XMFLOAT4X4 mWorld = MathHelper::Identity4X4();
@@ -98,7 +103,8 @@ bool MyGame::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
-	for (mSampleCount = 4; mSampleCount > 1; mSampleCount--)
+	// Check device supported msaa sample count.
+	for (mSampleCount = SAMPLE_COUNT_MAX; mSampleCount > 1; mSampleCount--)
 	{
 		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS levels = { mBackBufferFormat, mSampleCount };
 		if (FAILED(md3dDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &levels, sizeof(levels))))
@@ -159,6 +165,8 @@ void MyGame::OnResize()
 	md3dDevice->CreateRenderTargetView(mMsaaRenderTarget.Get(), &rtvDesc,
 		mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
 
+	mMsaaRenderTarget->SetName(L"MSAA Render Target");
+
 	// Create an MSAA depth stencil view.
 	D3D12_RESOURCE_DESC msaaDSDesc = CD3DX12_RESOURCE_DESC::Tex2D(
 		mDepthStencilFormat,
@@ -167,9 +175,9 @@ void MyGame::OnResize()
 	msaaDSDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	D3D12_CLEAR_VALUE dsClearValue{};
-	dsClearValue.Format = mDepthStencilFormat;
-	dsClearValue.DepthStencil.Depth = 1.0f;
-	dsClearValue.DepthStencil.Stencil = 0.0f;
+	dsClearValue.Format               = mDepthStencilFormat;
+	dsClearValue.DepthStencil.Depth   = 1.0f;
+	dsClearValue.DepthStencil.Stencil = 0;
 
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&heapProperties,
@@ -185,6 +193,8 @@ void MyGame::OnResize()
 
 	md3dDevice->CreateDepthStencilView(mMsaaDepthStencil.Get(),
 		&dsvDesc, mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
+
+	mMsaaDepthStencil->SetName(L"MSAA Depth Stencil");
 
 	const XMMATRIX proj = XMMatrixPerspectiveFovLH(
 		0.25f * MathHelper::Pi, AspectRatio(),
@@ -224,7 +234,7 @@ void MyGame::Draw(const GameTimer& gt)
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	{
-		D3D12_RESOURCE_BARRIER barrier[] = 
+		D3D12_RESOURCE_BARRIER barrier[] =
 		{
 			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
 			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET)
@@ -233,26 +243,15 @@ void MyGame::Draw(const GameTimer& gt)
 		mCommandList->ResourceBarrier(_countof(barrier), barrier);
 	}
 
-	auto bbHandle = CurrentBackBufferView();
-	auto dsvHandle = DepthStencilView();
-	mCommandList->ClearRenderTargetView(bbHandle,
-		Colors::Black,
-		0, nullptr);
-	mCommandList->ClearDepthStencilView(dsvHandle,
-		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-		1.0f, 0,
-		0, nullptr);
-
-	// TODO clear Msaa render target & depth stencil
 	auto msaaRTHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
 		mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
 	auto msaaDSHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
 		mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
 	mCommandList->ClearRenderTargetView(msaaRTHandle,
-		Colors::Black,0, nullptr);
+		Colors::Black, 0, nullptr);
 	mCommandList->ClearDepthStencilView(msaaDSHandle,
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-		1.0f, 0.0f, 0, nullptr);
+		1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1,
 		&msaaRTHandle,
@@ -289,6 +288,12 @@ void MyGame::Draw(const GameTimer& gt)
 
 	mCommandList->ResolveSubresource(CurrentBackBuffer(), 0,
 		mMsaaRenderTarget.Get(), 0, mBackBufferFormat);
+
+	{
+		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT);
+		mCommandList->ResourceBarrier(1, &barrier);
+	}
 
 	ThrowIfFailed(mCommandList->Close());
 
@@ -420,8 +425,8 @@ void MyGame::BuildShadersAndInputLayout()
 {
 	HRESULT hr = S_OK;
 
-	mVSbyteCode = CompileShader(L"shader/color.hlsl", nullptr, "VS", "vs_5_0");
-	mPSbyteCode = CompileShader(L"shader/color.hlsl", nullptr, "PS", "ps_5_0");
+	mVSbyteCode = CompileShader(L"shader/colorVS.hlsl", nullptr, "main", "vs_5_0");
+	mPSbyteCode = CompileShader(L"shader/colorPS.hlsl", nullptr, "main", "ps_5_0");
 
 	mInputLayout =
 	{

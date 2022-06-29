@@ -44,7 +44,7 @@ namespace DX
 		}
 
 		auto uploadHeapType = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		auto buffDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount);
+		auto buffDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * static_cast<UINT64>(elementCount));
 		ThrowIfFailed(device->CreateCommittedResource(
 			&uploadHeapType,
 			D3D12_HEAP_FLAG_NONE,
