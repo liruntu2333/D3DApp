@@ -49,7 +49,7 @@ public:
 
 protected:
 	virtual void CreateRtvAndDsvDescriptorHeaps();
-	virtual void OnResize();
+	void OnResize();
 	virtual void Update(const GameTimer& gt) = 0;
 	virtual void Draw(const GameTimer& gt) = 0;
 
@@ -95,9 +95,9 @@ protected:
 
 	GameTimer mTimer;
 
-	Microsoft::WRL::ComPtr<IDXGIFactory4> mDXGIFactory;
+	Microsoft::WRL::ComPtr<IDXGIFactory4> mDxgiFactory;
 	Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
-	Microsoft::WRL::ComPtr<ID3D12Device> mD3DDevice;
+	Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;
 
 	Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 	UINT64 mCurrentFence = 0;

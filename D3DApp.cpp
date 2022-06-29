@@ -24,7 +24,7 @@ D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance)
 
 D3DApp::~D3DApp()
 {
-	if (mD3DDevice != nullptr)
+	if (md3dDevice != nullptr)
 	{
 		FlushCommandQueue();
 	}
@@ -102,7 +102,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// Save the new client area dimensions.
 		mClientWidth = LOWORD(lParam);
 		mClientHeight = HIWORD(lParam);
-		if (mD3DDevice.Get() != nullptr)
+		if (md3dDevice.Get() != nullptr)
 		{
 			if (wParam == SIZE_MINIMIZED)
 			{
@@ -220,7 +220,7 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
-	ThrowIfFailed(mD3DDevice->CreateDescriptorHeap(
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&rtvHeapDesc,
 		IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
@@ -229,14 +229,14 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
-	ThrowIfFailed(mD3DDevice->CreateDescriptorHeap(
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&dsvHeapDesc,
 		IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
 void D3DApp::OnResize()
 {
-	assert(mD3DDevice);
+	assert(md3dDevice);
 	assert(mSwapChain);
 	assert(mDirectCmdListAlloc);
 
@@ -262,7 +262,7 @@ void D3DApp::OnResize()
 	{
 		mSwapChain->GetBuffer(i,
 			IID_PPV_ARGS(mSwapChainBuffer[i].GetAddressOf()));
-		mD3DDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(),
+		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(),
 			nullptr, rtvHeapHandle);
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
 	}
@@ -285,9 +285,9 @@ void D3DApp::OnResize()
 	optColor.DepthStencil.Depth = 1.0f;
 	optColor.DepthStencil.Stencil = 0;
 
-	auto heapTypeDefault = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	ThrowIfFailed(mD3DDevice->CreateCommittedResource(
-		&heapTypeDefault,
+	auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&heapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&depthStencilDesc,
 		D3D12_RESOURCE_STATE_COMMON,
@@ -300,16 +300,27 @@ void D3DApp::OnResize()
 	dsvDesc.Format = mDepthStencilFormat;
 	dsvDesc.Texture2D.MipSlice = 0;
 
-	mD3DDevice->CreateDepthStencilView(
+	md3dDevice->CreateDepthStencilView(
 		mDepthStencilBuffer.Get(),
 		&dsvDesc,
 		DepthStencilView());
 
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		mDepthStencilBuffer.Get(),
-		D3D12_RESOURCE_STATE_COMMON,
-		D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	mCommandList->ResourceBarrier(1, &barrier);
+	{
+		CD3DX12_RESOURCE_BARRIER barriers[] = 
+		{
+			CD3DX12_RESOURCE_BARRIER::Transition(
+			mDepthStencilBuffer.Get(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE),
+
+			CD3DX12_RESOURCE_BARRIER::Transition(
+			mDepthStencilBuffer.Get(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE),
+		}; 
+		mCommandList->ResourceBarrier(1, barriers);
+	}
+
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -377,29 +388,29 @@ bool D3DApp::InitDirect3D()
 	}
 #endif
 
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(mDXGIFactory.GetAddressOf())));
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(mDxgiFactory.GetAddressOf())));
 
 	HRESULT hardwareResult = D3D12CreateDevice(
 		nullptr,
 		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(mD3DDevice.GetAddressOf()));
+		IID_PPV_ARGS(md3dDevice.GetAddressOf()));
 
 	if (FAILED(hardwareResult))
 	{
 		ComPtr<IDXGIAdapter> pWarpAdapter = nullptr;
-		ThrowIfFailed(mDXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+		ThrowIfFailed(mDxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
 		ThrowIfFailed(
 			D3D12CreateDevice(pWarpAdapter.Get(),
 				D3D_FEATURE_LEVEL_11_0,
-				IID_PPV_ARGS(mD3DDevice.GetAddressOf())));
+				IID_PPV_ARGS(md3dDevice.GetAddressOf())));
 	}
 
-	ThrowIfFailed(mD3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(mFence.GetAddressOf())));
 
-	mRtvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	mDsvDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	mCbvSrvUavDescriptorSize = mD3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 #ifdef _DEBUG
 	LogAdapters();
@@ -420,13 +431,13 @@ void D3DApp::CreateCommandObjects()
 	commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
 	commandQueueDesc.NodeMask = 0;
 
-	ThrowIfFailed(mD3DDevice->CreateCommandQueue(&commandQueueDesc,
+	ThrowIfFailed(md3dDevice->CreateCommandQueue(&commandQueueDesc,
 		IID_PPV_ARGS(mCommandQueue.GetAddressOf())));
 
-	ThrowIfFailed(mD3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+	ThrowIfFailed(md3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
 
-	ThrowIfFailed(mD3DDevice->CreateCommandList(
+	ThrowIfFailed(md3dDevice->CreateCommandList(
 		0,
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		mDirectCmdListAlloc.Get(),
@@ -455,7 +466,7 @@ void D3DApp::CreateSwapChain()
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-	ThrowIfFailed(mDXGIFactory->CreateSwapChain(
+	ThrowIfFailed(mDxgiFactory->CreateSwapChain(
 		mCommandQueue.Get(),
 		&swapChainDesc,
 		mSwapChain.GetAddressOf()));
@@ -522,7 +533,7 @@ void D3DApp::LogAdapters() const
 	IDXGIAdapter* adapter = nullptr;
 	vector<IDXGIAdapter*> adapters;
 
-	while (mDXGIFactory->EnumAdapters(adapterIdx, &adapter) != DXGI_ERROR_NOT_FOUND)
+	while (mDxgiFactory->EnumAdapters(adapterIdx, &adapter) != DXGI_ERROR_NOT_FOUND)
 	{
 		DXGI_ADAPTER_DESC desc{};
 		adapter->GetDesc(&desc);
