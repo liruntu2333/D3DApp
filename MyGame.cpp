@@ -7,11 +7,8 @@
  *********************************************************************/
 
 #include <DirectXColors.h>
-#include <functional>
 
-#include "D3DApp.h"
-#include "MathHelper.h"
-#include "UploadBuffer.h"
+#include "MyGame.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -29,71 +26,10 @@ struct ObjectConstants
 	XMFLOAT4X4 WorldViewProjection = MathHelper::Identity4X4();
 };
 
-namespace 
+namespace
 {
 	constexpr int SAMPLE_COUNT_MAX = 8;
 }
-
-class MyGame final : public D3DApp
-{
-public:
-	explicit MyGame(HINSTANCE hInstance);
-	~MyGame() override;
-	MyGame(const MyGame&) = delete;
-	MyGame(MyGame&&) = delete;
-	MyGame& operator=(const MyGame&) = delete;
-	MyGame& operator=(MyGame&&) = delete;
-
-	bool Initialize() override;
-
-private:
-	void OnResize() override;
-	void Update(const GameTimer& gt) override;
-	void Draw(const GameTimer& gt) override;
-
-	void OnMouseDown(WPARAM btnState, int x, int y) override;
-	void OnMouseMove(WPARAM btnState, int x, int y) override;
-	void OnMouseUp(WPARAM btnState, int x, int y) override;
-
-	void BuildDescriptorHeaps();
-	void BuildConstantBuffers();
-	void BuildRootSignature();
-	void BuildShadersAndInputLayout();
-	void BuildBoxGeometry();
-	void BuildPipelineStateObject();
-
-private:
-	ComPtr<ID3D12Resource> mMsaaRenderTarget;
-	ComPtr<ID3D12Resource> mMsaaDepthStencil;
-
-	ComPtr<ID3D12DescriptorHeap> mMsaaRTVDescHeap;
-	ComPtr<ID3D12DescriptorHeap> mMsaaDSVDescHeap;
-
-	unsigned int mSampleCount = 0;
-
-	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
-
-	std::unique_ptr<UploadBuffer<ObjectConstants>> mObjConstBuff = nullptr;
-
-	std::unique_ptr<DX::MeshGeometry> mBoxGeometry = nullptr;
-
-	ComPtr<ID3DBlob> mVSbyteCode = nullptr;
-	ComPtr<ID3DBlob> mPSbyteCode = nullptr;
-
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout{};
-	ComPtr<ID3D12PipelineState> mPso{}; // pipeline state objects
-
-	XMFLOAT4X4 mWorld = MathHelper::Identity4X4();
-	XMFLOAT4X4 mView = MathHelper::Identity4X4();
-	XMFLOAT4X4 mProj = MathHelper::Identity4X4();
-
-	float mTheta = 1.5f * XM_PI;
-	float mPhi = XM_PIDIV4;
-	float mRadius = 5.0f;
-
-	POINT mLastMousePos{};
-};
 
 MyGame::MyGame(HINSTANCE hInstance) : D3DApp(hInstance) {}
 
@@ -120,7 +56,7 @@ bool MyGame::Initialize()
 	BuildConstantBuffers();
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
-	BuildBoxGeometry();
+	BuildSceneGeometry();
 	BuildPipelineStateObject();
 
 	ThrowIfFailed(mCommandList->Close());
@@ -175,8 +111,8 @@ void MyGame::OnResize()
 	msaaDSDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	D3D12_CLEAR_VALUE dsClearValue{};
-	dsClearValue.Format               = mDepthStencilFormat;
-	dsClearValue.DepthStencil.Depth   = 1.0f;
+	dsClearValue.Format = mDepthStencilFormat;
+	dsClearValue.DepthStencil.Depth = 1.0f;
 	dsClearValue.DepthStencil.Stencil = 0;
 
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
@@ -228,7 +164,7 @@ void MyGame::Draw(const GameTimer& gt)
 {
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
-	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPso.Get()));
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPipelineStateObject.Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -263,17 +199,20 @@ void MyGame::Draw(const GameTimer& gt)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	auto meshVbv = mBoxGeometry->VertexBufferView();
-	auto meshIbv = mBoxGeometry->IndexBufferView();
-	mCommandList->IASetVertexBuffers(0, 1, &meshVbv);
-	mCommandList->IASetIndexBuffer(&meshIbv);
-	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	for (const auto& obj : mScene)
+	{
+		auto meshVbv = obj->VertexBufferView();
+		auto meshIbv = obj->IndexBufferView();
+		mCommandList->IASetVertexBuffers(0, 1, &meshVbv);
+		mCommandList->IASetIndexBuffer(&meshIbv);
+		mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+		mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
-	mCommandList->DrawIndexedInstanced(
-		mBoxGeometry->DrawArgs["box"].IndexCount,
-		1, 0, 0, 0);
+		mCommandList->DrawIndexedInstanced(
+			obj->DrawArgs[obj->Name].IndexCount,
+			1, 0, 0, 0);
+	}
 
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
@@ -435,7 +374,7 @@ void MyGame::BuildShadersAndInputLayout()
 	};
 }
 
-void MyGame::BuildBoxGeometry()
+void MyGame::BuildSceneGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
@@ -479,38 +418,40 @@ void MyGame::BuildBoxGeometry()
 	constexpr UINT vbByteSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
 	constexpr UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint16_t);
 
-	mBoxGeometry = std::make_unique<MeshGeometry>();
-	mBoxGeometry->Name = "boxGeo";
+	auto box = std::make_unique<MeshGeometry>();
+	box->Name = "box";
 
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, mBoxGeometry->VertexBufferCPU.GetAddressOf()));
-	CopyMemory(mBoxGeometry->VertexBufferCPU->GetBufferPointer(),
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, box->VertexBufferCPU.GetAddressOf()));
+	CopyMemory(box->VertexBufferCPU->GetBufferPointer(),
 		vertices.data(), vbByteSize);
 
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, mBoxGeometry->IndexBufferCPU.GetAddressOf()));
-	CopyMemory(mBoxGeometry->IndexBufferCPU->GetBufferPointer(),
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, box->IndexBufferCPU.GetAddressOf()));
+	CopyMemory(box->IndexBufferCPU->GetBufferPointer(),
 		indices.data(), ibByteSize);
 
-	mBoxGeometry->VertexBufferGPU = DX::CreateDefaultBuffer(
+	box->VertexBufferGPU = DX::CreateDefaultBuffer(
 		md3dDevice.Get(), mCommandList.Get(),
 		vertices.data(), vbByteSize,
-		mBoxGeometry->VertexBufferUploader);
+		box->VertexBufferUploader);
 
-	mBoxGeometry->IndexBufferGPU = DX::CreateDefaultBuffer(
+	box->IndexBufferGPU = DX::CreateDefaultBuffer(
 		md3dDevice.Get(), mCommandList.Get(),
 		indices.data(), ibByteSize,
-		mBoxGeometry->IndexBufferUploader);
+		box->IndexBufferUploader);
 
-	mBoxGeometry->VertexByteStride = sizeof(Vertex);
-	mBoxGeometry->VertexBufferByteSize = vbByteSize;
-	mBoxGeometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-	mBoxGeometry->IndexBufferByteSize = ibByteSize;
+	box->VertexByteStride = sizeof(Vertex);
+	box->VertexBufferByteSize = vbByteSize;
+	box->IndexFormat = DXGI_FORMAT_R16_UINT;
+	box->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
 	submesh.IndexCount = static_cast<UINT>(indices.size());
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
-	mBoxGeometry->DrawArgs["box"] = submesh;
+	box->DrawArgs["box"] = submesh;
+
+	mScene.push_back(std::move(box));
 }
 
 void MyGame::BuildPipelineStateObject()
@@ -540,7 +481,7 @@ void MyGame::BuildPipelineStateObject()
 	psoDesc.DSVFormat = mDepthStencilFormat;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-		&psoDesc, IID_PPV_ARGS(mPso.GetAddressOf())));
+		&psoDesc, IID_PPV_ARGS(mPipelineStateObject.GetAddressOf())));
 }
 
 int WINAPI WinMain(

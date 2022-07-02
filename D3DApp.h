@@ -85,12 +85,12 @@ protected:
 
 	static D3DApp* mApp;
 
-	HINSTANCE mhAppInst        = nullptr; 
-	HWND      mhMainWnd        = nullptr; 
-	bool      mAppPaused       = false;
-	bool      mMinimized       = false;
-	bool      mMaximized       = false;
-	bool      mResizing        = false;
+	HINSTANCE mhAppInst = nullptr;
+	HWND      mhMainWnd = nullptr;
+	bool      mAppPaused = false;
+	bool      mMinimized = false;
+	bool      mMaximized = false;
+	bool      mResizing = false;
 	bool      mFullscreenState = false;
 
 	GameTimer mTimer;

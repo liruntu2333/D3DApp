@@ -48,9 +48,7 @@ int D3DApp::Run()
 
 			if (!mAppPaused)
 			{
-#ifdef _DEBUG
 				CalculateFrameStats();
-#endif
 				Update(mTimer);
 				Draw(mTimer);
 			}
@@ -217,18 +215,18 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
 	rtvHeapDesc.NumDescriptors = SWAP_CHAIN_BUFFER_COUNT;
-	rtvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	rtvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NodeMask       = 0;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&rtvHeapDesc,
 		IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
 	dsvHeapDesc.NumDescriptors = 1;
-	dsvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-	dsvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	dsvHeapDesc.NodeMask       = 0;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
 		&dsvHeapDesc,
 		IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
@@ -268,17 +266,17 @@ void D3DApp::OnResize()
 	}
 
 	D3D12_RESOURCE_DESC depthStencilDesc{};
-	depthStencilDesc.Dimension          = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthStencilDesc.Alignment          = 0;
-	depthStencilDesc.Width              = mClientWidth;
-	depthStencilDesc.Height             = mClientHeight;
-	depthStencilDesc.DepthOrArraySize   = 1;
-	depthStencilDesc.MipLevels          = 1;
-	depthStencilDesc.Format             = DXGI_FORMAT_R24G8_TYPELESS;
-	depthStencilDesc.SampleDesc.Count   = 1;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = mClientWidth;
+	depthStencilDesc.Height = mClientHeight;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	depthStencilDesc.SampleDesc.Count = 1;
 	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Layout             = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	depthStencilDesc.Flags              = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 	D3D12_CLEAR_VALUE optColor{};
 	optColor.Format = mDepthStencilFormat; // DXGI_FORMAT_D24_UNORM_S8_UINT
@@ -328,8 +326,8 @@ void D3DApp::OnResize()
 
 	mScreenViewport.TopLeftX = 0;
 	mScreenViewport.TopLeftY = 0;
-	mScreenViewport.Width    = static_cast<float>(mClientWidth);
-	mScreenViewport.Height   = static_cast<float>(mClientHeight);
+	mScreenViewport.Width = static_cast<float>(mClientWidth);
+	mScreenViewport.Height = static_cast<float>(mClientHeight);
 	mScreenViewport.MinDepth = 0.0f;
 	mScreenViewport.MaxDepth = 1.0f;
 
@@ -449,21 +447,21 @@ void D3DApp::CreateCommandObjects()
 void D3DApp::CreateSwapChain()
 {
 	DXGI_SWAP_CHAIN_DESC swapChainDesc{};
-	swapChainDesc.BufferDesc.Width                   = mClientWidth;
-	swapChainDesc.BufferDesc.Height                  = mClientHeight;
-	swapChainDesc.BufferDesc.RefreshRate.Numerator   = 60;
+	swapChainDesc.BufferDesc.Width = mClientWidth;
+	swapChainDesc.BufferDesc.Height = mClientHeight;
+	swapChainDesc.BufferDesc.RefreshRate.Numerator = 60;
 	swapChainDesc.BufferDesc.RefreshRate.Denominator = 1;
-	swapChainDesc.BufferDesc.Format                  = mBackBufferFormat;
-	swapChainDesc.BufferDesc.ScanlineOrdering        = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	swapChainDesc.BufferDesc.Scaling                 = DXGI_MODE_SCALING_UNSPECIFIED;
-	swapChainDesc.SampleDesc.Count                   = 1;
-	swapChainDesc.SampleDesc.Quality                 = 0;
-	swapChainDesc.BufferUsage                        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount                        = SWAP_CHAIN_BUFFER_COUNT;
-	swapChainDesc.OutputWindow                       = mhMainWnd;
-	swapChainDesc.Windowed                           = true;
-	swapChainDesc.SwapEffect                         = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.Flags                              = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	swapChainDesc.BufferDesc.Format = mBackBufferFormat;
+	swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	swapChainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+	swapChainDesc.SampleDesc.Count = 1;
+	swapChainDesc.SampleDesc.Quality = 0;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.BufferCount = SWAP_CHAIN_BUFFER_COUNT;
+	swapChainDesc.OutputWindow = mhMainWnd;
+	swapChainDesc.Windowed = true;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	ThrowIfFailed(mDxgiFactory->CreateSwapChain(
 		mCommandQueue.Get(),

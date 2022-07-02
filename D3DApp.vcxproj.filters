@@ -41,6 +41,9 @@
     <ClInclude Include="UploadBuffer.h">
       <Filter>source</Filter>
     </ClInclude>
+    <ClInclude Include="MyGame.h">
+      <Filter>source</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\colorVS.hlsl">

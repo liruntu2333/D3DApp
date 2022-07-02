@@ -158,6 +158,7 @@
     <ClInclude Include="D3DUtil.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="MathHelper.h" />
+    <ClInclude Include="MyGame.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>
