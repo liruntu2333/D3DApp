@@ -2,10 +2,6 @@
 
 #include <WindowsX.h>
 
-using Microsoft::WRL::ComPtr;
-using namespace std;
-using namespace DirectX;
-
 LRESULT CALLBACK
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -222,14 +218,6 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 		&rtvHeapDesc,
 		IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
-	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
-	dsvHeapDesc.NumDescriptors = 1;
-	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	dsvHeapDesc.NodeMask = 0;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-		&dsvHeapDesc,
-		IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
 void D3DApp::OnResize()
@@ -245,7 +233,6 @@ void D3DApp::OnResize()
 	{
 		ThrowIfFailed(swapChainBuffer.Reset());
 	}
-	mDepthStencilBuffer.Reset();
 
 	ThrowIfFailed(mSwapChain->ResizeBuffers(
 		SWAP_CHAIN_BUFFER_COUNT,
@@ -263,60 +250,6 @@ void D3DApp::OnResize()
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(),
 			nullptr, rtvHeapHandle);
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
-	}
-
-	D3D12_RESOURCE_DESC depthStencilDesc{};
-	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthStencilDesc.Alignment = 0;
-	depthStencilDesc.Width = mClientWidth;
-	depthStencilDesc.Height = mClientHeight;
-	depthStencilDesc.DepthOrArraySize = 1;
-	depthStencilDesc.MipLevels = 1;
-	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-	D3D12_CLEAR_VALUE optColor{};
-	optColor.Format = mDepthStencilFormat; // DXGI_FORMAT_D24_UNORM_S8_UINT
-	optColor.DepthStencil.Depth = 1.0f;
-	optColor.DepthStencil.Stencil = 0;
-
-	auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&heapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&depthStencilDesc,
-		D3D12_RESOURCE_STATE_COMMON,
-		&optColor,
-		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
-
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Format = mDepthStencilFormat;
-	dsvDesc.Texture2D.MipSlice = 0;
-
-	md3dDevice->CreateDepthStencilView(
-		mDepthStencilBuffer.Get(),
-		&dsvDesc,
-		DepthStencilView());
-
-	{
-		CD3DX12_RESOURCE_BARRIER barriers[] =
-		{
-			CD3DX12_RESOURCE_BARRIER::Transition(
-				mDepthStencilBuffer.Get(),
-				D3D12_RESOURCE_STATE_COMMON,
-				D3D12_RESOURCE_STATE_DEPTH_WRITE),
-
-			CD3DX12_RESOURCE_BARRIER::Transition(
-				mDepthStencilBuffer.Get(),
-				D3D12_RESOURCE_STATE_COMMON,
-				D3D12_RESOURCE_STATE_DEPTH_WRITE),
-		};
-		mCommandList->ResourceBarrier(1, barriers);
 	}
 
 	ThrowIfFailed(mCommandList->Close());
@@ -337,15 +270,15 @@ void D3DApp::OnResize()
 bool D3DApp::InitMainWindow()
 {
 	WNDCLASS wc{};
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc = MainWndProc;
-	wc.cbClsExtra = 0;
-	wc.cbWndExtra = 0;
-	wc.hInstance = mhAppInst;
-	wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wc.style         = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc   = MainWndProc;
+	wc.cbClsExtra    = 0;
+	wc.cbWndExtra    = 0;
+	wc.hInstance     = mhAppInst;
+	wc.hIcon         = LoadIcon(nullptr, IDI_APPLICATION);
+	wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
 	wc.hbrBackground = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
-	wc.lpszMenuName = nullptr;
+	wc.lpszMenuName  = nullptr;
 	wc.lpszClassName = L"MainWnd";
 
 	if (!RegisterClass(&wc))
@@ -378,7 +311,7 @@ bool D3DApp::InitDirect3D()
 {
 #ifdef _DEBUG
 	{
-		ComPtr<ID3D12Debug> debugController;
+		Microsoft::WRL::ComPtr<ID3D12Debug> debugController;
 		ThrowIfFailed(D3D12GetDebugInterface(
 			IID_PPV_ARGS(debugController.GetAddressOf())));
 		debugController->EnableDebugLayer();
@@ -394,7 +327,7 @@ bool D3DApp::InitDirect3D()
 
 	if (FAILED(hardwareResult))
 	{
-		ComPtr<IDXGIAdapter> pWarpAdapter = nullptr;
+		Microsoft::WRL::ComPtr<IDXGIAdapter> pWarpAdapter = nullptr;
 		ThrowIfFailed(mDxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
 		ThrowIfFailed(
 			D3D12CreateDevice(pWarpAdapter.Get(),
@@ -473,17 +406,16 @@ void D3DApp::FlushCommandQueue()
 {
 	mCurrentFence++;
 	ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence))
-		if (mFence->GetCompletedValue() < mCurrentFence)
+	if (mFence->GetCompletedValue() < mCurrentFence)
+	{
+		if (HANDLE eventHandle = 
+			CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS))
 		{
-			const HANDLE eventHandle =
-				CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
 			ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
-			if (eventHandle != nullptr)
-			{
-				WaitForSingleObject(eventHandle, INFINITE);
-				CloseHandle(eventHandle);
-			}
+			WaitForSingleObject(eventHandle, INFINITE);
+			CloseHandle(eventHandle);
 		}
+	}
 }
 
 ID3D12Resource* D3DApp::CurrentBackBuffer() const
@@ -511,10 +443,10 @@ void D3DApp::CalculateFrameStats() const
 		auto fps = static_cast<float>(frameCount);
 		float mspf = 1000.0f / fps;
 
-		wstring fpsStr = to_wstring(fps);
-		wstring mspfStr = to_wstring(mspf);
+		std::wstring fpsStr = std::to_wstring(fps);
+		std::wstring mspfStr = std::to_wstring(mspf);
 
-		wstring windowText = mMainWndCaption +
+		std::wstring windowText = mMainWndCaption +
 			L"    fps: " + fpsStr +
 			L"   mfps: " + mspfStr;
 		SetWindowText(mhMainWnd, windowText.c_str());
@@ -528,13 +460,13 @@ void D3DApp::LogAdapters() const
 {
 	UINT adapterIdx = 0;
 	IDXGIAdapter* adapter = nullptr;
-	vector<IDXGIAdapter*> adapters;
+	std::vector<IDXGIAdapter*> adapters;
 
 	while (mDxgiFactory->EnumAdapters(adapterIdx, &adapter) != DXGI_ERROR_NOT_FOUND)
 	{
 		DXGI_ADAPTER_DESC desc{};
 		adapter->GetDesc(&desc);
-		wstring text = L"Adapter: ";
+		std::wstring text = L"Adapter: ";
 		text += desc.Description;
 		text += L'\n';
 		OutputDebugString(text.c_str());
@@ -562,7 +494,7 @@ void D3DApp::LogAdapterOutputs(IDXGIAdapter* adapter) const
 	{
 		DXGI_OUTPUT_DESC desc{};
 		output->GetDesc(&desc);
-		wstring text = L"Output: ";
+		std::wstring text = L"Output: ";
 		text += desc.DeviceName;
 		text += L'\n';
 		OutputDebugString(text.c_str());
@@ -583,18 +515,18 @@ void D3DApp::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT format) cons
 
 	// call to get precise count
 	output->GetDisplayModeList(format, flags, &count, nullptr);
-	vector<DXGI_MODE_DESC> modeDescs(count);
+	std::vector<DXGI_MODE_DESC> modeDescs(count);
 	output->GetDisplayModeList(format, flags, &count, modeDescs.data());
 
 	for (const auto& modeDesc : modeDescs)
 	{
 		UINT numerator = modeDesc.RefreshRate.Numerator;
 		UINT denominator = modeDesc.RefreshRate.Denominator;
-		wstring text =
-			L"Width = " + to_wstring(modeDesc.Width) + L' ' +
-			L"Height = " + to_wstring(modeDesc.Height) + L' ' +
-			L"Refresh = " + to_wstring(numerator) + L' ' +
-			to_wstring(denominator) + L'\n';
+		std::wstring text =
+			L"Width = " + std::to_wstring(modeDesc.Width) + L' ' +
+			L"Height = " + std::to_wstring(modeDesc.Height) + L' ' +
+			L"Refresh = " + std::to_wstring(numerator) + L' ' +
+			std::to_wstring(denominator) + L'\n';
 
 		OutputDebugString(text.c_str());
 	}

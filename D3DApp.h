@@ -8,11 +8,6 @@
  *********************************************************************/
 #pragma once
 
-#if defined _DEBUG
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif
-
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -25,7 +20,9 @@ class D3DApp
 public:
 
 	D3DApp(const D3DApp&) = delete;
-	D3DApp& operator=(const D3DApp&) = delete;
+	D3DApp(D3DApp&&)      = delete;
+	D3DApp& operator      =(const D3DApp&) = delete;
+	D3DApp& operator      =(D3DApp&&) = delete;
 
 protected:
 	explicit D3DApp(HINSTANCE hInstance);
@@ -53,7 +50,6 @@ protected:
 	virtual void Update(const GameTimer& gt) = 0;
 	virtual void Draw(const GameTimer& gt) = 0;
 
-	// Convenience overrides for handling mouse input.
 	virtual void OnMouseDown(WPARAM btnState, int x, int y) { }
 	virtual void OnMouseUp(WPARAM btnState, int x, int y) { }
 	virtual void OnMouseMove(WPARAM btnState, int x, int y) { }
@@ -69,11 +65,6 @@ protected:
 
 	ID3D12Resource* CurrentBackBuffer() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const;
-
-	D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView() const
-	{
-		return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
-	}
 
 	void CalculateFrameStats() const;
 
@@ -109,21 +100,14 @@ protected:
 	static constexpr int SWAP_CHAIN_BUFFER_COUNT = 2;
 	int mCurrBackBuffer = 0;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SWAP_CHAIN_BUFFER_COUNT];
-	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
-	// Render Target View
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
-	// Depth Stencil View
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
 
 	D3D12_VIEWPORT mScreenViewport{};
 	D3D12_RECT mScissorRect{};
 
-	// Render Target View
 	UINT mRtvDescriptorSize = 0;
-	// Depth Stencil View
 	UINT mDsvDescriptorSize = 0;
-	// Constant Buffer View / Shader Resource View / Unordered Access View
 	UINT mCbvSrvUavDescriptorSize = 0;
 
 	// Derived class should set these in derived constructor to customize starting values.

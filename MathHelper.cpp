@@ -6,10 +6,8 @@
 #include <cfloat>
 #include <cmath>
 
-using namespace DirectX;
-
 constexpr float MathHelper::Infinity = FLT_MAX;
-constexpr float MathHelper::Pi = XM_PI;
+constexpr float MathHelper::Pi = DirectX::XM_PI;
 
 //float MathHelper::AngleFromXY(float x, float y)
 //{

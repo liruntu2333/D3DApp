@@ -62,7 +62,7 @@ public:
 		return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&det, A));
 	}
 
-	static DirectX::XMFLOAT4X4 XM_CALLCONV Identity4X4()
+	static DirectX::XMFLOAT4X4 XM_CALLCONV Identity4x4()
 	{
 		static DirectX::XMFLOAT4X4 identity(
 			1.0f, 0.0f, 0.0f, 0.0f,

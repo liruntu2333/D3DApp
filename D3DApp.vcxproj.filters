@@ -24,6 +24,12 @@
     <ClCompile Include="MathHelper.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="GeometryGenerator.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameResource.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3DUtil.h">
@@ -42,6 +48,12 @@
       <Filter>source</Filter>
     </ClInclude>
     <ClInclude Include="MyGame.h">
+      <Filter>source</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>source</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameResource.h">
       <Filter>source</Filter>
     </ClInclude>
   </ItemGroup>
