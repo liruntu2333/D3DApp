@@ -154,6 +154,7 @@
     <ClCompile Include="GeometryGenerator.cpp" />
     <ClCompile Include="MathHelper.cpp" />
     <ClCompile Include="MyGame.cpp" />
+    <ClCompile Include="Waves.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3DApp.h" />
@@ -164,6 +165,7 @@
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="MyGame.h" />
     <ClInclude Include="UploadBuffer.h" />
+    <ClInclude Include="Waves.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\colorPS.hlsl">

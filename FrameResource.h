@@ -37,7 +37,7 @@ namespace DX
 
 	struct FrameResource
 	{
-		FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
+		FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT waveVertCount);
 		FrameResource(const FrameResource&) = delete;
 		FrameResource(FrameResource&&) = delete;
 		FrameResource& operator=(const FrameResource&) = delete;
@@ -46,8 +46,10 @@ namespace DX
 
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
-		std::unique_ptr<UploadBuffer<PassConstants>> PassConstBuff;
-		std::unique_ptr<UploadBuffer<ObjectConstants>> ObjConstBuff;
+		std::unique_ptr<UploadBuffer<PassConstants>> PassConstBuff{};
+		std::unique_ptr<UploadBuffer<ObjectConstants>> ObjConstBuff{};
+
+		std::unique_ptr<UploadBuffer<Vertex>> WaveVtxBuff{};
 
 		UINT64 Fence = 0;
 	};

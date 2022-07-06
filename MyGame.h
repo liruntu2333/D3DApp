@@ -4,13 +4,14 @@
 #include "MathHelper.h"
 #include "UploadBuffer.h"
 #include "FrameResource.h"
+#include  "Waves.h"
 
 static constexpr int FRAME_RESOURCES_NUM = 3;
 
 struct RenderItem
 {
 	RenderItem()                           = default;
-	DirectX::XMFLOAT4X4 World              = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
 	int NumFrameDirty                      = FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
 	DX::MeshGeometry* Geometry             = nullptr;
@@ -18,6 +19,12 @@ struct RenderItem
 	UINT IndexCount                        = 0;
 	UINT StartIndexLocation                = 0;
 	int BaseVertexLocation                 = 0;
+};
+
+enum class RenderLayer : int
+{
+	Opaque = 0,
+	Count
 };
 
 class MyGame final : public D3DApp
@@ -45,17 +52,21 @@ private:
 	void UpdateCamera            (const GameTimer& gameTimer);
 	void UpdateObjectConstBuffs   (const GameTimer& gameTimer) const;
 	void UpdateMainPassConstBuffs(const GameTimer& gameTimer);
+	void UpdateWaves(const GameTimer& gameTimer) const;
 
-	void BuildDescriptorHeaps();
-	void BuildConstantBufferViews() const;
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
-	void BuildSceneGeometry();
+	void BuildDescriptorHeaps();
+	void BuildLandGeometry();
+	void BuildWavesGeometryBuffers();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, 
 		const std::vector<RenderItem*>& renderItems) const;
+
+	static float GetHillsHeight(float x, float z);
+	static DirectX::XMFLOAT3 GetHillsNormal(float x, float z);
 
 private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaRenderTarget;
@@ -71,8 +82,8 @@ private:
 	int mCurrFrameResourceIndex = 0;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
+	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap;
+	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
@@ -80,21 +91,22 @@ private:
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout{};
 
+	RenderItem* mWavesRenderItem = nullptr;
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
-	std::vector<RenderItem*> mOpaqueRenderItems{};
+	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
+	std::unique_ptr<DX::Waves> mWaves{};
 
 	DX::PassConstants mMainPassConstBuff{};
-	UINT mPassCbvOffset = 0;
 
 	bool mIsWireframe = false;
 
 	DirectX::XMFLOAT3 mEyePos{};
-	DirectX::XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mView = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mProj = DX::MathHelper::Identity4x4();
 
 	float mTheta = 1.5f * DirectX::XM_PI;
-	float mPhi = 0.2f * DirectX::XM_PI;
-	float mRadius = 15.0f;
+	float mPhi = DirectX::XM_PIDIV2 - 0.1f;
+	float mRadius = 50.0f;
 
 	POINT mLastMousePos{};
 
