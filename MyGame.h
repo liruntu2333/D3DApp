@@ -6,14 +6,14 @@
 #include "FrameResource.h"
 #include  "Waves.h"
 
-static constexpr int FRAME_RESOURCES_NUM = 3;
-
 struct RenderItem
 {
 	RenderItem()                           = default;
 	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
-	int NumFrameDirty                      = FRAME_RESOURCES_NUM;
+	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
+
+	DX::Material* Mat                      = nullptr;
 	DX::MeshGeometry* Geometry             = nullptr;
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	UINT IndexCount                        = 0;
@@ -51,6 +51,7 @@ private:
 	void OnKeyboardInput         (const GameTimer& gameTimer);
 	void UpdateCamera            (const GameTimer& gameTimer);
 	void UpdateObjectConstBuffs   (const GameTimer& gameTimer) const;
+	void UpdateMaterialConstBuffs(const GameTimer& gameTimer) const;
 	void UpdateMainPassConstBuffs(const GameTimer& gameTimer);
 	void UpdateWaves(const GameTimer& gameTimer) const;
 
@@ -61,6 +62,7 @@ private:
 	void BuildWavesGeometryBuffers();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();
+	void BuildMaterials();
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, 
 		const std::vector<RenderItem*>& renderItems) const;
@@ -86,6 +88,7 @@ private:
 	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
+	std::unordered_map<std::string, std::unique_ptr<DX::Material>> mMaterials;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPipelineStateObjects;
 
@@ -96,7 +99,7 @@ private:
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
 	std::unique_ptr<DX::Waves> mWaves{};
 
-	DX::PassConstants mMainPassConstBuff{};
+	DX::PassConstants mMainPassConstBuff;
 
 	bool mIsWireframe = false;
 
@@ -108,7 +111,10 @@ private:
 	float mPhi = DirectX::XM_PIDIV2 - 0.1f;
 	float mRadius = 50.0f;
 
+	float mSunTheta = 1.25f * DirectX::XM_PI;
+	float mSunPhi = DirectX::XM_PIDIV4;
+
 	POINT mLastMousePos{};
 
-	static constexpr int SAMPLE_COUNT_MAX = 8;
+	static const float RENDER_TARGET_CLEAN_VALUE[4];
 };

@@ -11,6 +11,9 @@
 #include "MyGame.h"
 #include "GeometryGenerator.h"
 
+// ReSharper disable once CppVariableCanBeMadeConstexpr
+const float MyGame::RENDER_TARGET_CLEAN_VALUE[4] = {0.000000000f, 0.749019623f, 1.000000000f, 1.000000000f};
+
 MyGame::MyGame(HINSTANCE hInstance) : D3DApp(hInstance) {}
 
 MyGame::~MyGame()
@@ -26,7 +29,7 @@ bool MyGame::Initialize()
 	if (!D3DApp::Initialize()) return false;
 
 	// Check device supported msaa sample count.
-	for (mSampleCount = SAMPLE_COUNT_MAX; mSampleCount > 1; mSampleCount--)
+	for (mSampleCount = DX::SAMPLE_COUNT_MAX; mSampleCount > 1; mSampleCount--)
 	{
 		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS levels = { mBackBufferFormat, mSampleCount };
 		if (FAILED(md3dDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &levels, sizeof(levels))))
@@ -38,12 +41,11 @@ bool MyGame::Initialize()
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	mWaves = std::make_unique<DX::Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
-
 	BuildRootSignature();
 	BuildShadersAndInputLayout();
 	BuildLandGeometry();
 	BuildWavesGeometryBuffers();
+	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
 	BuildDescriptorHeaps();
@@ -76,7 +78,7 @@ void MyGame::OnResize()
 
 	D3D12_CLEAR_VALUE rtClearValue{};
 	rtClearValue.Format = mBackBufferFormat;
-	memcpy(rtClearValue.Color, Colors::Black, sizeof(float) * 4);
+	memcpy(rtClearValue.Color, RENDER_TARGET_CLEAN_VALUE, sizeof(float) * 4);
 
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&heapProperties,
@@ -135,7 +137,7 @@ void MyGame::Update(const GameTimer& gameTimer)
 	OnKeyboardInput(gameTimer);
 	UpdateCamera(gameTimer);
 
-	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % FRAME_RESOURCES_NUM;
+	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % DX::FRAME_RESOURCES_NUM;
 	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
 	if (mCurrFrameResource->Fence != 0 &&
@@ -150,6 +152,7 @@ void MyGame::Update(const GameTimer& gameTimer)
 		}
 	}
 	UpdateObjectConstBuffs(gameTimer);
+	UpdateMaterialConstBuffs(gameTimer);
 	UpdateMainPassConstBuffs(gameTimer);
 	UpdateWaves(gameTimer);
 }
@@ -183,7 +186,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 
 	auto hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
 	auto hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
-	mCommandList->ClearRenderTargetView(hRtv, Colors::Black, 0, nullptr);
+	mCommandList->ClearRenderTargetView(hRtv, RENDER_TARGET_CLEAN_VALUE, 0, nullptr);
 	mCommandList->ClearDepthStencilView(hDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
 		1.0f, 0, 0, nullptr);
 
@@ -193,7 +196,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(1, passCb->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
 
@@ -271,10 +274,21 @@ void MyGame::OnMouseUp(WPARAM btnState, int x, int y)
 
 void MyGame::OnKeyboardInput(const GameTimer& gameTimer)
 {
+	const float dt = gameTimer.DeltaTime();
+
 	if (GetAsyncKeyState('1') & 0x8000)
 		mIsWireframe = true;
 	else
 		mIsWireframe = false;
+
+	if (GetAsyncKeyState(VK_LEFT) & 0x8000)
+		mSunTheta -= 1.0f * dt;
+	if (GetAsyncKeyState(VK_RIGHT) & 0x8000)
+		mSunTheta += 1.0f * dt;
+	if (GetAsyncKeyState(VK_UP) & 0x8000)
+		mSunPhi -= 1.0f * dt;
+	if (GetAsyncKeyState(VK_DOWN) & 0x8000)
+		mSunPhi += 1.0f * dt;
 }
 
 void MyGame::UpdateCamera(const GameTimer& gameTimer)
@@ -314,6 +328,28 @@ void MyGame::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
 	}
 }
 
+void MyGame::UpdateMaterialConstBuffs(const GameTimer& gameTimer) const
+{
+	using namespace DirectX;
+
+	auto currMatCb = mCurrFrameResource->MatConstBuff.get();
+	for (const auto & pair : mMaterials)
+	{
+		DX::Material* material = pair.second.get();
+		assert(material && "material is nullptr");
+		if (material->NumFrameDirty > 0)
+		{
+			DX::MaterialConstants matConst;
+			matConst.DiffuseAlbedo = material->DiffuseAlbedo;
+			matConst.FresnelR0 = material->FresnelR0;
+			matConst.Roughness = material->Roughness;
+
+			currMatCb->CopyData(material->MatCbIndex, matConst);
+			--material->NumFrameDirty;
+		}
+	}
+}
+
 void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 {
 	using namespace DirectX;
@@ -347,6 +383,11 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	mMainPassConstBuff.TotalTime = gameTimer.TotalTime();
 	mMainPassConstBuff.DeltaTime = gameTimer.DeltaTime();
 
+	mMainPassConstBuff.AmbientLight = { 0.25f,0.25f,0.35f,1.0f };
+	auto lightDir = -DX::MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
+	XMStoreFloat3(&mMainPassConstBuff.lights[0].Direction, lightDir);
+	mMainPassConstBuff.lights[0].Intensity = { 1.0f,1.0f,0.9f };
+
 	const auto currPassCb = mCurrFrameResource->PassConstBuff.get();
 	currPassCb->CopyData(0, mMainPassConstBuff);
 }
@@ -374,7 +415,7 @@ void MyGame::UpdateWaves(const GameTimer& gameTimer) const
 		DX::Vertex vtx;
 
 		vtx.Pos = mWaves->Position(i);
-		vtx.Color = DirectX::XMFLOAT4(DirectX::Colors::LightSeaGreen);
+		vtx.Normal = mWaves->Normal(i);
 
 		currWavesVb->CopyData(i, vtx);
 	}
@@ -402,11 +443,12 @@ void MyGame::BuildDescriptorHeaps()
 
 void MyGame::BuildRootSignature()
 {
-	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
+	slotRootParameter[2].InitAsConstantBufferView(2);
 
-	const CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0,
+	const CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0,
 		nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -429,13 +471,13 @@ void MyGame::BuildRootSignature()
 
 void MyGame::BuildShadersAndInputLayout()
 {
-	mShaders["standardVS"] = DX::CompileShader(L"shader/colorVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["opaquePS"] = DX::CompileShader(L"shader/colorPS.hlsl", nullptr, "main", "ps_5_1");
+	mShaders["standardVS"] = DX::CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["opaquePS"] = DX::CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
@@ -452,28 +494,9 @@ void MyGame::BuildLandGeometry()
 		const auto& pos = grid.Vertices[i].Position;
 		vertices[i].Pos = pos;
 		vertices[i].Pos.y = GetHillsHeight(pos.x, pos.z);
-
-		if (vertices[i].Pos.y < -10.0f)
-		{
-			vertices[i].Color = XMFLOAT4(Colors::LightGoldenrodYellow);
-		}
-		else if (vertices[i].Pos.y < 5.0f)
-		{
-			vertices[i].Color = XMFLOAT4(Colors::YellowGreen);
-		}
-		else if (vertices[i].Pos.y < 12.0f)
-		{
-			vertices[i].Color = XMFLOAT4(Colors::DarkGreen);
-		}
-		else if (vertices[i].Pos.y < 20.0f)
-		{
-			vertices[i].Color = XMFLOAT4(Colors::DarkKhaki);
-		}
-		else
-		{
-			vertices[i].Color = XMFLOAT4(Colors::WhiteSmoke);
-		}
+		vertices[i].Normal = GetHillsNormal(pos.x, pos.z);
 	}
+
 	std::vector<uint16_t> indices = grid.GetIndices16();
 	const UINT vbByteSize = static_cast<UINT>(vertices.size()) * sizeof(DX::Vertex);
 	const UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint16_t);
@@ -508,6 +531,8 @@ void MyGame::BuildLandGeometry()
 
 void MyGame::BuildWavesGeometryBuffers()
 {
+	mWaves = std::make_unique<DX::Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+
 	std::vector<uint16_t> indices(3 * mWaves->TriangleCount());
 	assert(mWaves->VertexCount() < 0xffff);
 
@@ -594,11 +619,37 @@ void MyGame::BuildPipelineStateObjects()
 
 void MyGame::BuildFrameResources()
 {
-	for (int i = 0; i < FRAME_RESOURCES_NUM; ++i)
+	for (int i = 0; i < DX::FRAME_RESOURCES_NUM; ++i)
 	{
-		mFrameResources.push_back(std::make_unique<DX::FrameResource>
-			(md3dDevice.Get(), 1, static_cast<UINT>(mRenderItems.size()), mWaves->VertexCount()));
+		mFrameResources.push_back(std::make_unique<DX::FrameResource>(
+			md3dDevice.Get(), 1, 
+			static_cast<UINT>(mRenderItems.size()), 
+			static_cast<UINT>(mWaves->VertexCount()),
+			static_cast<UINT>(mWaves->VertexCount())
+			));
 	}
+}
+
+void MyGame::BuildMaterials()
+{
+	using namespace DirectX;
+
+	auto grass = std::make_unique<DX::Material>();
+	grass->Name          = "grass";
+	grass->MatCbIndex    = 0;
+	grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
+	grass->FresnelR0     = XMFLOAT3(0.01f, 0.01f, 0.01f);
+	grass->Roughness     = 0.125f;
+
+	auto water = std::make_unique<DX::Material>();
+	water->Name = "water";
+	water->MatCbIndex = 1;
+	water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
+	water->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+	water->Roughness = 0.0f;
+
+	mMaterials[grass->Name] = std::move(grass);
+	mMaterials[water->Name] = std::move(water);
 }
 
 void MyGame::BuildRenderItems()
@@ -608,6 +659,7 @@ void MyGame::BuildRenderItems()
 	auto wave = std::make_unique<RenderItem>();
 	wave->World = DX::MathHelper::Identity4x4();
 	wave->ObjConstBuffIndex = 0;
+	wave->Mat = mMaterials["water"].get();
 	wave->Geometry = mGeometries["waterGeo"].get();
 	wave->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	wave->IndexCount = wave->Geometry->DrawArgs["grid"].IndexCount;
@@ -621,6 +673,7 @@ void MyGame::BuildRenderItems()
 	auto grid = std::make_unique<RenderItem>();
 	grid->World = DX::MathHelper::Identity4x4();
 	grid->ObjConstBuffIndex = 1;
+	grid->Mat = mMaterials["grass"].get();
 	grid->Geometry = mGeometries["landGeo"].get();
 	grid->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	grid->IndexCount = grid->Geometry->DrawArgs["grid"].IndexCount;
@@ -636,7 +689,9 @@ void MyGame::BuildRenderItems()
 void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
 {
 	UINT objCbByteSize = DX::CalcConstantBufferByteSize(sizeof(DX::ObjectConstants));
+	UINT matCbByteSize = DX::CalcConstantBufferByteSize(sizeof(DX::MaterialConstants));
 	auto objectCb = mCurrFrameResource->ObjConstBuff->Resource();
+	auto matCb = mCurrFrameResource->MatConstBuff->Resource();
 
 	for (const auto & item : renderItems)
 	{
@@ -646,10 +701,14 @@ void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(&ibv);
 		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
 
-		D3D12_GPU_VIRTUAL_ADDRESS cbvAdr = objectCb->GetGPUVirtualAddress();
-		cbvAdr += objCbByteSize * item->ObjConstBuffIndex;
+		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();
+		objCbvAdr += objCbByteSize * item->ObjConstBuffIndex;
+		D3D12_GPU_VIRTUAL_ADDRESS matCbvAdr = matCb->GetGPUVirtualAddress();
+		matCbvAdr += matCbByteSize * item->Mat->MatCbIndex;
 
-		cmdList->SetGraphicsRootConstantBufferView(0, cbvAdr);
+		cmdList->SetGraphicsRootConstantBufferView(0, objCbvAdr);
+		cmdList->SetGraphicsRootConstantBufferView(1, matCbvAdr);
+
 		cmdList->DrawIndexedInstanced(item->IndexCount, 1, 
 			item->StartIndexLocation, item->BaseVertexLocation, 0);
 	}

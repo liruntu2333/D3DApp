@@ -21,9 +21,14 @@
 #include <wrl.h>
 
 #include "d3dx12.h"
+#include "MathHelper.h"
 
 namespace DX
 {
+	inline constexpr int SAMPLE_COUNT_MAX = 8;
+	inline constexpr int FRAME_RESOURCES_NUM = 3;
+	inline constexpr int LIGHT_COUNT_MAX = 16;
+
 	class DxException
 	{
 	public:
@@ -95,6 +100,39 @@ namespace DX
 		[[nodiscard]] D3D12_INDEX_BUFFER_VIEW IndexBufferView() const;
 
 		void DisposeUploaders();
+	};
+
+	struct Light
+	{
+		DirectX::XMFLOAT3 Intensity = { 0.5f,0.5f,0.5f };
+		float AttenuationStart = 1.0f;	// point/spot
+		DirectX::XMFLOAT3 Direction = { 0.0f,-1.0f,0.0f };	// spot/direction
+		float AttenuationEnd        = 10.0f; // point/spot
+		DirectX::XMFLOAT3 Position  = { 0.0f,0.0f,0.0f }; //point/spot
+		float SpotPower             = 64.0f; // spot
+	};
+
+	struct MaterialConstants
+	{
+		DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f,1.0f,1.0f,1.0f };
+		DirectX::XMFLOAT3 FresnelR0 = { 0.01f,0.01f,0.1f };
+		float Roughness = 0.25f;
+		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+	};
+
+	struct Material
+	{
+		std::string Name;
+
+		int MatCbIndex                   = -1;
+		int DiffuseSrvHeapIndex          = -1;
+		int NormalSrvHeapIndex           = -1;
+		int NumFrameDirty                = FRAME_RESOURCES_NUM;
+
+		DirectX::XMFLOAT4 DiffuseAlbedo  = { 1.0f, 1.0f, 1.0f, 1.0f };
+		DirectX::XMFLOAT3 FresnelR0      = { 0.01f, 0.01f, 0.01f };
+		float Roughness                  = 0.25f;
+		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 	};
 
 	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(

@@ -70,9 +70,21 @@
     <FxCompile Include="shader\colorPS.hlsl">
       <Filter>shader</Filter>
     </FxCompile>
+    <FxCompile Include="shader\defaultVS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultPS.hlsl">
+      <Filter>shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="shader\lightingUtil.hlsli">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="shader\default.hlsli">
       <Filter>shader</Filter>
     </None>
   </ItemGroup>
