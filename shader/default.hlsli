@@ -10,6 +10,8 @@
 	#define NUM_SPOT_LIGHTS 0
 #endif
 
+#define TOON_SHADING
+
 #include "lightingUtil.hlsli"
 
 cbuffer cbPerObect : register(b0)
@@ -42,8 +44,8 @@ cbuffer cbPass : register(b2)
     float    gTotalTime;
     float    gDeltaTime;
 
-    float4 gAmbientLight;
-    Light gLights[LIGHT_MAX];
+    float4   gAmbientLight;
+    Light    gLights[LIGHT_MAX];
 }
 
 struct VertexIn

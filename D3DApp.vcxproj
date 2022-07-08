@@ -105,8 +105,8 @@
     </Link>
     <FxCompile>
       <ShaderModel>5.1</ShaderModel>
-      <DisableOptimizations>true</DisableOptimizations>
-      <EnableDebuggingInformation>true</EnableDebuggingInformation>
+      <DisableOptimizations>false</DisableOptimizations>
+      <EnableDebuggingInformation>false</EnableDebuggingInformation>
       <ObjectFileOutput>$(SolutionDir)shader\%(Filename).cso</ObjectFileOutput>
     </FxCompile>
   </ItemDefinitionGroup>
@@ -145,8 +145,8 @@
     </Link>
     <FxCompile>
       <ShaderModel>5.1</ShaderModel>
-      <DisableOptimizations>true</DisableOptimizations>
-      <EnableDebuggingInformation>true</EnableDebuggingInformation>
+      <DisableOptimizations>false</DisableOptimizations>
+      <EnableDebuggingInformation>false</EnableDebuggingInformation>
       <ObjectFileOutput>$(SolutionDir)shader\%(Filename).cso</ObjectFileOutput>
     </FxCompile>
   </ItemDefinitionGroup>

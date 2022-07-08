@@ -112,10 +112,10 @@ protected:
 
 	// Derived class should set these in derived constructor to customize starting values.
 	std::wstring mMainWndCaption = L"壹隻憂鬱臺灣烏龜尋釁幾羣骯髒變態囓齒鱷龞，幾羣骯髒變態囓齒鱷龞圍毆壹隻憂鬱臺灣烏龜。";
-	// D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
+	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
 	DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	int mClientWidth = 0;
-	int mClientHeight = 0;
+	int mClientWidth = 800;
+	int mClientHeight = 600;
 
 };
