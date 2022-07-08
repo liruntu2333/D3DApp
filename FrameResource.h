@@ -27,17 +27,21 @@ namespace DX
 		float FarZ                            = 0.0f;
 		float TotalTime                       = 0.0f;
 		float DeltaTime                       = 0.0f;
+
+		DirectX::XMFLOAT4 AmbientLight = { 0.0f,0.0f,0.0f,1.0f };
+		Light Lights[LIGHT_COUNT_MAX];
 	};
 
 	struct Vertex
 	{
 		DirectX::XMFLOAT3 Pos;
-		DirectX::XMFLOAT4 Color;
+		DirectX::XMFLOAT3 Normal;
 	};
 
 	struct FrameResource
 	{
-		FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
+		FrameResource(ID3D12Device* device, UINT passCount,
+			UINT objectCount, UINT materialCount);
 		FrameResource(const FrameResource&) = delete;
 		FrameResource(FrameResource&&) = delete;
 		FrameResource& operator=(const FrameResource&) = delete;
@@ -46,8 +50,9 @@ namespace DX
 
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
-		std::unique_ptr<UploadBuffer<PassConstants>> PassConstBuff;
-		std::unique_ptr<UploadBuffer<ObjectConstants>> ObjConstBuff;
+		std::unique_ptr<UploadBuffer<PassConstants>> PassConstBuff{};
+		std::unique_ptr<UploadBuffer<ObjectConstants>> ObjConstBuff{};
+		std::unique_ptr<UploadBuffer<MaterialConstants>> MatConstBuff{};
 
 		UINT64 Fence = 0;
 	};
