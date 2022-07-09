@@ -30,6 +30,16 @@ float3 SchlickFresnel(float3 R0, float3 normal, float3 eyeDir)
     return R0 + (1.0f - R0) * f0 * f0 * f0 * f0 * f0;
 }
 
+float ToonShadingKs(float ks)
+{
+    return ks <= 0.0f ? 0.4f : (ks <= 0.5f ? 0.5f : (ks <= 1.0 ? 0.8f : ks));
+}
+
+float ToonShadingKd(float kd)
+{
+    return kd == 0.0f ? 0.2f : (kd <= 0.5f ? 0.4f : 0.8f);
+}
+
 // L(direct) = diffuse + specular
 //           = cosTheta * I(direct) x (md + Rf * (m + 8)/8*(n*h)^m)
 //                Kd                                     Ks
@@ -42,22 +52,7 @@ float3 BlinnPhong(float3 intensity, float3 lightDir, float3 norm, float3 eyeDir,
     float ks = (m + 8.0f) * pow(max(dot(halfVec, norm), 0.0f), m) / 8.0f;
 
 #ifdef TOON_SHADING
-    if (dot(lightDir, norm) <= 0.f)
-	{
-        ks = 0.0f;
-    }
-    else if (ks <= 0.0f)
-    {
-        ks = 0.4f;
-    }
-    else if (ks <= 0.5f)
-    {
-        ks = 0.5f;
-    }
-    else if (ks <= 1.0f)
-    {
-        ks = 0.8f;
-    }
+	ks = ToonShadingKs(ks);
 #endif
 
     float3 fresnel = SchlickFresnel(mat.FresnelR0, halfVec, lightDir);
@@ -70,25 +65,13 @@ float3 BlinnPhong(float3 intensity, float3 lightDir, float3 norm, float3 eyeDir,
 float3 ComputeDirectionalLight(Light light, Material mat, float3 norm, float3 eyeDir)
 {
     float3 lightDir = -light.Direction;
-    float cosTheta = max(dot(lightDir, norm), 0.0f);
-
+    float kd = max(dot(lightDir, norm), 0.0f);
 
 #ifdef TOON_SHADING
-    if (cosTheta == 0.0f)
-    {
-        cosTheta = 0.4f;
-    }
-    else if (cosTheta <= 0.5)
-    {
-        cosTheta = 0.6f;
-    }
-    else
-    {
-        cosTheta = 1.0f;
-    }
+    kd = ToonShadingKd(kd);
 #endif
 
-    float3 intensity = light.Intensity * cosTheta;
+    float3 intensity = light.Intensity * kd;
     return BlinnPhong(intensity, lightDir, norm, eyeDir, mat);
 }
 
@@ -100,24 +83,13 @@ float3 ComputePointLight(Light light, Material mat, float3 pos, float3 norm, flo
         return 0.0f;
 
     lightDir /= dis;
-    float cosTheta = max(dot(lightDir, norm), 0.0f);
+    float kd = max(dot(lightDir, norm), 0.0f);
 
 #ifdef TOON_SHADING
-    if (cosTheta == 0.0f)
-    {
-        cosTheta = 0.4f;
-    }
-    else if (cosTheta <= 0.5)
-    {
-        cosTheta = 0.6f;
-    }
-    else
-    {
-        cosTheta = 1.0f;
-    }
+    kd = ToonShadingKd(kd);
 #endif
 
-    float3 intensity = light.Intensity * cosTheta;
+    float3 intensity = light.Intensity * kd;
 
     intensity *= CalAttenuation(dis, light.AttnStart, light.AttnEnd);
     return BlinnPhong(intensity, lightDir, norm, eyeDir, mat);
@@ -131,24 +103,13 @@ float3 ComputeSpotLight(Light light, Material mat, float3 pos, float3 norm, floa
         return 0.0f;
 
     lightDir /= dis;
-    float cosTheta = max(dot(lightDir, norm), 0.0f);
+    float kd = max(dot(lightDir, norm), 0.0f);
 
 #ifdef TOON_SHADING
-    if (cosTheta == 0.0f)
-    {
-        cosTheta = 0.4f;
-    }
-    else if (cosTheta <= 0.5)
-    {
-        cosTheta = 0.6f;
-    }
-    else
-    {
-        cosTheta = 1.0f;
-    }
+    kd = ToonShadingKd(kd);
 #endif
 
-    float3 intensity = light.Intensity * cosTheta;
+    float3 intensity = light.Intensity * kd;
 
     intensity *= CalAttenuation(dis, light.AttnStart, light.AttnEnd);
 
