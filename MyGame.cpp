@@ -8,17 +8,14 @@
 
 #include <DirectXColors.h>
 
-#include "RenderSystem.h"
+#include "MyGame.h"
 #include "GeometryGenerator.h"
 
 using namespace DX;
 
-constexpr float RenderSystem::RENDER_TARGET_CLEAN_VALUE[4] = 
-{ 0.529411793f, 0.807843208f, 0.980392218f, 1.000000000f }; //DirectX::Colors::LightSkyBlue;
+MyGame::MyGame(HINSTANCE hInstance) : D3DApp(hInstance) {}
 
-RenderSystem::RenderSystem(HINSTANCE hInstance) : D3DApp(hInstance) {}
-
-RenderSystem::~RenderSystem()
+MyGame::~MyGame()
 {
 	if (md3dDevice != nullptr)
 	{
@@ -26,7 +23,7 @@ RenderSystem::~RenderSystem()
 	}
 }
 
-bool RenderSystem::Initialize()
+bool MyGame::Initialize()
 {
 	if (!D3DApp::Initialize()) return false;
 
@@ -63,7 +60,7 @@ bool RenderSystem::Initialize()
 	return true;
 }
 
-void RenderSystem::OnResize()
+void MyGame::OnResize()
 {
 	using namespace DirectX;
 
@@ -80,7 +77,7 @@ void RenderSystem::OnResize()
 
 	D3D12_CLEAR_VALUE rtClearValue{};
 	rtClearValue.Format = mBackBufferFormat;
-	memcpy(rtClearValue.Color, RENDER_TARGET_CLEAN_VALUE, sizeof(float) * 4);
+	memcpy(rtClearValue.Color, Colors::Black, sizeof(float) * 4);
 
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&heapProperties,
@@ -134,7 +131,7 @@ void RenderSystem::OnResize()
 	XMStoreFloat4x4(&mProj, proj);
 }
 
-void RenderSystem::Update(const GameTimer& gameTimer)
+void MyGame::Update(const GameTimer& gameTimer)
 {
 	OnKeyboardInput(gameTimer);
 	UpdateCamera(gameTimer);
@@ -159,7 +156,7 @@ void RenderSystem::Update(const GameTimer& gameTimer)
 	UpdateMainPassConstBuffs(gameTimer);
 }
 
-void RenderSystem::Draw(const GameTimer& gameTimer)
+void MyGame::Draw(const GameTimer& gameTimer)
 {
 	using namespace DirectX;
 
@@ -188,7 +185,7 @@ void RenderSystem::Draw(const GameTimer& gameTimer)
 
 	auto hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
 	auto hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
-	mCommandList->ClearRenderTargetView(hRtv, RENDER_TARGET_CLEAN_VALUE, 0, nullptr);
+	mCommandList->ClearRenderTargetView(hRtv, Colors::Black, 0, nullptr);
 	mCommandList->ClearDepthStencilView(hDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
 		1.0f, 0, 0, nullptr);
 
@@ -233,7 +230,7 @@ void RenderSystem::Draw(const GameTimer& gameTimer)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void RenderSystem::OnMouseDown(WPARAM btnState, int x, int y)
+void MyGame::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -241,7 +238,7 @@ void RenderSystem::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void RenderSystem::OnMouseMove(WPARAM btnState, int x, int y)
+void MyGame::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	using namespace DirectX;
 
@@ -269,12 +266,12 @@ void RenderSystem::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void RenderSystem::OnMouseUp(WPARAM btnState, int x, int y)
+void MyGame::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void RenderSystem::OnKeyboardInput(const GameTimer& gameTimer)
+void MyGame::OnKeyboardInput(const GameTimer& gameTimer)
 {
 	if (GetAsyncKeyState('1') & 0x8000)
 		mIsWireframe = true;
@@ -282,7 +279,7 @@ void RenderSystem::OnKeyboardInput(const GameTimer& gameTimer)
 		mIsWireframe = false;
 }
 
-void RenderSystem::UpdateCamera(const GameTimer& gameTimer)
+void MyGame::UpdateCamera(const GameTimer& gameTimer)
 {
 	using namespace DirectX;
 
@@ -298,11 +295,11 @@ void RenderSystem::UpdateCamera(const GameTimer& gameTimer)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void RenderSystem::AnimateMaterials(const GameTimer& gameTimer)
+void MyGame::AnimateMaterials(const GameTimer& gameTimer)
 {
 }
 
-void RenderSystem::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
+void MyGame::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
 {
 	using namespace DirectX;
 
@@ -323,7 +320,7 @@ void RenderSystem::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
 	}
 }
 
-void RenderSystem::UpdateMaterialConstBuffs(const GameTimer& gameTimer) const
+void MyGame::UpdateMaterialConstBuffs(const GameTimer& gameTimer) const
 {
 	using namespace DirectX;
 
@@ -345,7 +342,7 @@ void RenderSystem::UpdateMaterialConstBuffs(const GameTimer& gameTimer) const
 	}
 }
 
-void RenderSystem::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
+void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 {
 	using namespace DirectX;
 
@@ -389,7 +386,7 @@ void RenderSystem::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	currPassCb->CopyData(0, mMainPassConstBuff);
 }
 
-void RenderSystem::BuildDescriptorHeaps()
+void MyGame::BuildDescriptorHeaps()
 {
 	// Create descriptor heaps for MSAA render target views and depth stencil views.
 	D3D12_DESCRIPTOR_HEAP_DESC rtvDescHeapDesc{};
@@ -407,7 +404,7 @@ void RenderSystem::BuildDescriptorHeaps()
 		IID_PPV_ARGS(mMsaaDSVDescHeap.GetAddressOf())));
 }
 
-void RenderSystem::BuildRootSignature()
+void MyGame::BuildRootSignature()
 {
 	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 	slotRootParameter[0].InitAsConstantBufferView(0);
@@ -435,7 +432,7 @@ void RenderSystem::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void RenderSystem::BuildShadersAndInputLayout()
+void MyGame::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["opaquePS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
@@ -447,7 +444,7 @@ void RenderSystem::BuildShadersAndInputLayout()
 	};
 }
 
-void RenderSystem::BuildSceneGeometry()
+void MyGame::BuildSceneGeometry()
 {
 	using namespace DirectX;
 
@@ -554,7 +551,7 @@ void RenderSystem::BuildSceneGeometry()
 	mGeometries[geometry->Name] = std::move(geometry);
 }
 
-void RenderSystem::BuildSkullGeometry()
+void MyGame::BuildSkullGeometry()
 {
 	std::ifstream fin("Models/skull.txt");
 
@@ -625,7 +622,7 @@ void RenderSystem::BuildSkullGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-void RenderSystem::BuildPipelineStateObjects()
+void MyGame::BuildPipelineStateObjects()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaque{};
 	opaque.InputLayout.pInputElementDescs = mInputLayout.data();
@@ -660,7 +657,7 @@ void RenderSystem::BuildPipelineStateObjects()
 		IID_PPV_ARGS(mPipelineStateObjects["opaque_wireframe"].GetAddressOf())));
 }
 
-void RenderSystem::BuildFrameResources()
+void MyGame::BuildFrameResources()
 {
 	for (int i = 0; i < FRAME_RESOURCES_NUM; ++i)
 	{
@@ -669,7 +666,7 @@ void RenderSystem::BuildFrameResources()
 	}
 }
 
-void RenderSystem::BuildRenderItems()
+void MyGame::BuildRenderItems()
 {
 	using namespace DirectX;
 
@@ -775,7 +772,7 @@ void RenderSystem::BuildRenderItems()
 	}
 }
 
-void RenderSystem::BuildMaterials()
+void MyGame::BuildMaterials()
 {
 	using namespace DirectX;
 
@@ -808,7 +805,7 @@ void RenderSystem::BuildMaterials()
 	skullMat->MatCbIndex = 3;
 	skullMat->DiffuseSrvHeapIndex = 3;
 	skullMat->DiffuseAlbedo = XMFLOAT4(Colors::White);
-	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05);
 	skullMat->Roughness = 0.3f;
 
 	mMaterials[bricks0->Name] = std::move(bricks0);
@@ -817,7 +814,7 @@ void RenderSystem::BuildMaterials()
 	mMaterials[skullMat->Name] = std::move(skullMat);
 }
 
-void RenderSystem::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
+void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
 {
 	UINT objCbByteSize = CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT matCbByteSize = CalcConstantBufferByteSize(sizeof(MaterialConstants));
@@ -858,7 +855,7 @@ int WINAPI WinMain(
 
 	try
 	{
-		RenderSystem theApp(hInstance);
+		MyGame theApp(hInstance);
 		if (!theApp.Initialize())
 			return 0;
 

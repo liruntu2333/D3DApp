@@ -26,15 +26,15 @@ enum class RenderLayer : int
 	Count
 };
 
-class RenderSystem : public D3DApp
+class MyGame final : public D3DApp
 {
 public:
-	explicit RenderSystem(HINSTANCE hInstance);
-	~RenderSystem() override;
-	RenderSystem(const RenderSystem&) = delete;
-	RenderSystem(RenderSystem&&) = delete;
-	RenderSystem& operator=(const RenderSystem&) = delete;
-	RenderSystem& operator=(RenderSystem&&) = delete;
+	explicit MyGame(HINSTANCE hInstance);
+	~MyGame() override;
+	MyGame(const MyGame&) = delete;
+	MyGame(MyGame&&) = delete;
+	MyGame& operator=(const MyGame&) = delete;
+	MyGame& operator=(MyGame&&) = delete;
 
 	bool Initialize() override;
 
@@ -69,7 +69,6 @@ private:
 private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaRenderTarget;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaDepthStencil;
-	static const float RENDER_TARGET_CLEAN_VALUE[4];
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaRTVDescHeap;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaDSVDescHeap;
@@ -107,4 +106,7 @@ private:
 	float mRadius = 15.0f;
 
 	POINT mLastMousePos{};
+
+private:
+	static const float RENDER_TARGET_CLEAN_VALUE[4];
 };
