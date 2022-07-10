@@ -18,7 +18,7 @@
     <ClCompile Include="GameTimer.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="MyGame.cpp">
+    <ClCompile Include="RenderSystem.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="MathHelper.cpp">
@@ -47,7 +47,7 @@
     <ClInclude Include="UploadBuffer.h">
       <Filter>source</Filter>
     </ClInclude>
-    <ClInclude Include="MyGame.h">
+    <ClInclude Include="RenderSystem.h">
       <Filter>source</Filter>
     </ClInclude>
     <ClInclude Include="GeometryGenerator.h">
