@@ -74,7 +74,7 @@ namespace DX
 
 		// DirectX::BoundingBox Bounds{};
 	};
-
+	
 	struct MeshGeometry
 	{
 		std::string Name{};

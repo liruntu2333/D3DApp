@@ -10,7 +10,7 @@
 	#define NUM_SPOT_LIGHTS 0
 #endif
 
-#define TOON_SHADING
+//#define TOON_SHADING
 
 #include "lightingUtil.hlsli"
 
