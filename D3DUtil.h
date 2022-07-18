@@ -66,6 +66,21 @@ namespace DX
 		return std::wstring(buffer);
 	}
 
+	Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
+
+	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
+		const std::wstring& filename,
+		const D3D_SHADER_MACRO* defines,
+		const std::string& entryPoint,
+		const std::string& target);
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
+		ID3D12Device* device,
+		ID3D12GraphicsCommandList* cmdList,
+		const void* initData,
+		UINT64 byteSize,
+		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+
 	struct SubmeshGeometry
 	{
 		UINT IndexCount = 0;
@@ -117,7 +132,7 @@ namespace DX
 		DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f,1.0f,1.0f,1.0f };
 		DirectX::XMFLOAT3 FresnelR0 = { 0.01f,0.01f,0.1f };
 		float Roughness = 0.25f;
-		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 	};
 
 	struct Material
@@ -132,21 +147,17 @@ namespace DX
 		DirectX::XMFLOAT4 DiffuseAlbedo  = { 1.0f, 1.0f, 1.0f, 1.0f };
 		DirectX::XMFLOAT3 FresnelR0      = { 0.01f, 0.01f, 0.01f };
 		float Roughness                  = 0.25f;
-		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 	};
 
-	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
-		const std::wstring& filename,
-		const D3D_SHADER_MACRO* defines,
-		const std::string& entryPoint,
-		const std::string& target);
+	struct Texture
+	{
+		std::string Name{};
+		std::wstring FileName{};
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
-		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList,
-		const void* initData,
-		UINT64 byteSize,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+		Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
+		Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap;
+	};
 }
 
 #ifndef ThrowIfFailed

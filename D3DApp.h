@@ -11,6 +11,7 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "DirectXTK12.lib")
 
 #include "D3DUtil.h"
 #include "GameTimer.h"

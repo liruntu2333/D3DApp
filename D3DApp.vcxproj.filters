@@ -1,91 +1,207 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="source">
+    <Filter Include="Shader">
+      <UniqueIdentifier>{5631c308-0b41-4363-8ff7-f21631376dd8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
       <UniqueIdentifier>{1e12cc09-b7a3-4282-aac0-103a5f9ed537}</UniqueIdentifier>
     </Filter>
-    <Filter Include="shader">
-      <UniqueIdentifier>{5631c308-0b41-4363-8ff7-f21631376dd8}</UniqueIdentifier>
+    <Filter Include="Asset">
+      <UniqueIdentifier>{6c32e38c-aa40-4d56-bddb-049ef8141c25}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D3DUtil.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="D3DApp.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="GameTimer.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="MyGame.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="MathHelper.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="GeometryGenerator.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="FrameResource.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Waves.cpp">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3DUtil.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="D3DApp.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="GameTimer.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="MathHelper.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="UploadBuffer.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="MyGame.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="GeometryGenerator.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="FrameResource.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="Waves.h">
-      <Filter>source</Filter>
+      <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\colorVS.hlsl">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="shader\colorPS.hlsl">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="shader\defaultVS.hlsl">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="shader\defaultPS.hlsl">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </None>
     <None Include="shader\lightingUtil.hlsli">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </None>
     <None Include="shader\default.hlsli">
-      <Filter>shader</Filter>
+      <Filter>Shader</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="Textures\bricks.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\bricks_nmap.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\bricks2.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\bricks2_nmap.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\bricks3.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\checkboard.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\default_nmap.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\desertcube1024.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\grass.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\grasscube1024.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\head_diff.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\head_norm.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\ice.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\jacket_diff.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\jacket_norm.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\pants_diff.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\pants_norm.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\snowcube1024.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\stone.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\sunsetcube1024.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tile.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tile_nmap.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree0.bmp">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree01S.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree1.bmp">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree02S.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree2.bmp">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\tree35S.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\treearray.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\treeArray2.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\upBody_diff.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\upbody_norm.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\water1.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\white1x1.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\WireFence.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\WoodCrate01.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\WoodCrate02.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>

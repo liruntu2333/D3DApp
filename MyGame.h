@@ -8,12 +8,13 @@
 
 struct RenderItem
 {
-	RenderItem()                           = default;
+	RenderItem() = default;
 	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 TexTransform       = DX::MathHelper::Identity4x4();
 	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
 
-	DX::Material* Mat                      = nullptr;
+	DX::Material* Material                 = nullptr;
 	DX::MeshGeometry* Geometry             = nullptr;
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	UINT IndexCount                        = 0;
@@ -50,22 +51,27 @@ private:
 
 	void OnKeyboardInput         (const GameTimer& gameTimer);
 	void UpdateCamera            (const GameTimer& gameTimer);
+	void AnimateMaterials		 (const GameTimer& gameTimer);
 	void UpdateObjectConstBuffs   (const GameTimer& gameTimer) const;
 	void UpdateMaterialConstBuffs(const GameTimer& gameTimer) const;
 	void UpdateMainPassConstBuffs(const GameTimer& gameTimer);
 	void UpdateWaves(const GameTimer& gameTimer) const;
 
+	void LoadTextures();
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
 	void BuildDescriptorHeaps();
 	void BuildLandGeometry();
 	void BuildWavesGeometryBuffers();
+	void BuildBoxGeometry();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();
 	void BuildMaterials();
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, 
 		const std::vector<RenderItem*>& renderItems) const;
+
+	static std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
 	static float GetHillsHeight(float x, float z);
 	static DirectX::XMFLOAT3 GetHillsNormal(float x, float z);
@@ -85,10 +91,11 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<DX::Material>> mMaterials;
+	std::unordered_map<std::string, std::unique_ptr<DX::Texture>> mTextures;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPipelineStateObjects;
 
@@ -115,6 +122,4 @@ private:
 	float mSunPhi = DirectX::XM_PIDIV4;
 
 	POINT mLastMousePos{};
-
-	static const float RENDER_TARGET_CLEAN_VALUE[4];
 };

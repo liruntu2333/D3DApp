@@ -1,5 +1,5 @@
 #ifndef NUM_DIR_LIGHTS
-	#define NUM_DIR_LIGHTS 1
+	#define NUM_DIR_LIGHTS 3
 #endif
 
 #ifndef NUM_POINT_LIGHTS
@@ -14,20 +14,22 @@
 
 #include "lightingUtil.hlsli"
 
+Texture2D gDiffuseMap : register(t0);
+
+SamplerState gSamPointWrap        : register(s0);
+SamplerState gSamPointClamp       : register(s1);
+SamplerState gSamLinearWrap       : register(s2);
+SamplerState gSamLinearClamp      : register(s3);
+SamplerState gSamAnisotropicWrap  : register(s4);
+SamplerState gSamAnisotropicClamp : register(s5);
+
 cbuffer cbPerObect : register(b0)
 {
     float4x4 gWorld;
+    float4x4 gTexTransform;
 }
 
-cbuffer cbMaterial : register(b1)
-{
-    float4 gDiffuseAlbedo;
-    float3 gFresnelR0;
-    float  gRoughness;
-    //float4x4 gMatTransform;
-}
-
-cbuffer cbPass : register(b2)
+cbuffer cbPass : register(b1)
 {
     float4x4 gView;
     float4x4 gInvView;
@@ -48,10 +50,19 @@ cbuffer cbPass : register(b2)
     Light    gLights[LIGHT_MAX];
 }
 
+cbuffer cbMaterial : register(b2)
+{
+    float4   gDiffuseAlbedo;
+    float3   gFresnelR0;
+    float    gRoughness;
+    float4x4 gMatTransform;
+}
+
 struct VertexIn
 {
     float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
+    float2 TexC    : TEXCOORD;
 };
 
 struct VertexOut
@@ -59,4 +70,5 @@ struct VertexOut
     float4 PosH    : SV_POSITION;
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
+    float2 TexC    : TEXCOORD;
 };
