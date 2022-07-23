@@ -26,15 +26,15 @@ enum class RenderLayer : int
 	Count
 };
 
-class RenderSystem : public D3DApp
+class MyGame : public D3DApp
 {
 public:
-	explicit RenderSystem(HINSTANCE hInstance);
-	~RenderSystem() override;
-	RenderSystem(const RenderSystem&) = delete;
-	RenderSystem(RenderSystem&&) = delete;
-	RenderSystem& operator=(const RenderSystem&) = delete;
-	RenderSystem& operator=(RenderSystem&&) = delete;
+	explicit MyGame(HINSTANCE hInstance);
+	~MyGame() override;
+	MyGame(const MyGame&) = delete;
+	MyGame(MyGame&&) = delete;
+	MyGame& operator=(const MyGame&) = delete;
+	MyGame& operator=(MyGame&&) = delete;
 
 	bool Initialize() override;
 
