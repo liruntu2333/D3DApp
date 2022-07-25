@@ -9,11 +9,14 @@ struct RenderItem
 {
 	RenderItem()                           = default;
 	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 TexTransform = DX::MathHelper::Identity4x4();
+
 	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
 
 	DX::Material* Mat					   = nullptr;
 	DX::MeshGeometry* Geo                  = nullptr;
+
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	UINT IndexCount                        = 0;
 	UINT StartIndexLocation                = 0;
@@ -54,6 +57,7 @@ private:
 	void UpdateMaterialConstBuffs (const GameTimer& gameTimer) const;
 	void UpdateMainPassConstBuffs (const GameTimer& gameTimer);
 
+	void LoadTextures();
 	void BuildDescriptorHeaps();
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
@@ -69,7 +73,6 @@ private:
 private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaRenderTarget;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaDepthStencil;
-	static const float RENDER_TARGET_CLEAN_VALUE[4];
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaRTVDescHeap;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaDSVDescHeap;
@@ -79,13 +82,15 @@ private:
 	std::vector<std::unique_ptr<DX::FrameResource>> mFrameResources{};
 	DX::FrameResource* mCurrFrameResource = nullptr;
 	int mCurrFrameResourceIndex = 0;
+	UINT mCbvSrvDescriptorSize = 0;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 	//Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-	//Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<DX::Material>> mMaterials;
+	std::unordered_map<std::string, std::unique_ptr<DX::Texture>> mTextures;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPipelineStateObjects;
 
