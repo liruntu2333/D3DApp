@@ -8,7 +8,7 @@
 struct RenderItem
 {
 	RenderItem()                           = default;
-	DirectX::XMFLOAT4X4 World              = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
 	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
 
@@ -99,8 +99,8 @@ private:
 	bool mIsWireframe = false;
 
 	DirectX::XMFLOAT3 mEyePos{};
-	DirectX::XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mView = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mProj = DX::MathHelper::Identity4x4();
 
 	float mTheta = 1.5f * DirectX::XM_PI;
 	float mPhi = DirectX::XM_PI * 0.2f;

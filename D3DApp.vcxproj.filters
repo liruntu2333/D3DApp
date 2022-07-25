@@ -10,6 +10,12 @@
     <Filter Include="Asset">
       <UniqueIdentifier>{6c32e38c-aa40-4d56-bddb-049ef8141c25}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Asset\Texture">
+      <UniqueIdentifier>{ee7cb240-c8d3-4af3-b21d-70a9ee0d3e3b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Asset\Model">
+      <UniqueIdentifier>{b9685b32-7141-45a7-a4eb-6d09229fa78e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D3DUtil.cpp">
@@ -105,115 +111,121 @@
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="Textures\bricks.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\bricks_nmap.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\bricks2.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\bricks2_nmap.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\bricks3.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\checkboard.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\default_nmap.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\desertcube1024.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\grass.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\grasscube1024.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\head_diff.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\head_norm.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\ice.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\jacket_diff.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\jacket_norm.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\pants_diff.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\pants_norm.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\snowcube1024.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\stone.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\sunsetcube1024.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tile.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tile_nmap.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree0.bmp">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree01S.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree1.bmp">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree02S.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree2.bmp">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\tree35S.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\treearray.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\treeArray2.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\upBody_diff.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\upbody_norm.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\water1.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\white1x1.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\WireFence.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\WoodCrate01.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\WoodCrate02.dds">
-      <Filter>Asset</Filter>
+      <Filter>Asset\Texture</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Models\skull.txt">
+      <Filter>Asset\Model</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Models\car.txt">
+      <Filter>Asset\Model</Filter>
     </CopyFileToFolders>
   </ItemGroup>
 </Project>

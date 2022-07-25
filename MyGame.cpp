@@ -44,13 +44,13 @@ bool MyGame::Initialize()
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	BuildRootSignature();
+	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildSceneGeometry();
 	BuildSkullGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
-	BuildDescriptorHeaps();
 	BuildPipelineStateObjects();
 
 	ThrowIfFailed(mCommandList->Close());
@@ -437,8 +437,8 @@ void MyGame::BuildRootSignature()
 
 void MyGame::BuildShadersAndInputLayout()
 {
-	mShaders["standardVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["opaquePS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
+	mShaders["standardVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
+	mShaders["opaquePS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
 
 	mInputLayout =
 	{
@@ -731,7 +731,7 @@ void MyGame::BuildRenderItems()
 		XMStoreFloat4x4(&lftCyl->World, leftCylWorld);
 		lftCyl->ObjConstBuffIndex     = objConstBuffIndex++;
 		lftCyl->Mat                   = mMaterials["bricks0"].get();
-		lftCyl->Geo                   =		mGeometries["shapeGeo"].get();
+		lftCyl->Geo                   =	mGeometries["shapeGeo"].get();
 		lftCyl->PrimitiveType         = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		lftCyl->IndexCount            = lftCyl->Geo->DrawArgs["cylinder"].IndexCount;
 		lftCyl->StartIndexLocation    = lftCyl->Geo->DrawArgs["cylinder"].StartIndexLocation;
