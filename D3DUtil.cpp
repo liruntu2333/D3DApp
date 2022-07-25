@@ -50,6 +50,23 @@ void MeshGeometry::DisposeUploaders()
 	IndexBufferUploader = nullptr;
 }
 
+Microsoft::WRL::ComPtr<ID3DBlob> DX::LoadBinary(const std::wstring& filename)
+{
+	std::ifstream fin(filename, std::ios::binary);
+
+	fin.seekg(0, std::ios_base::end);
+	std::ifstream::pos_type size = fin.tellg();
+	fin.seekg(0, std::ios_base::beg);
+
+	ComPtr<ID3DBlob> blob;
+	D3DCreateBlob(size, blob.GetAddressOf());
+
+	fin.read(static_cast<char*>(blob->GetBufferPointer()), size);
+	fin.close();
+
+	return blob;
+}
+
 Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
 	const std::wstring& filename,
 	const D3D_SHADER_MACRO* defines,

@@ -21,6 +21,7 @@
 #include <wrl.h>
 
 #include "d3dx12.h"
+#include "MathHelper.h"
 
 namespace DX
 {
@@ -65,6 +66,21 @@ namespace DX
 		return std::wstring(buffer);
 	}
 
+	Microsoft::WRL::ComPtr<ID3DBlob> LoadBinary(const std::wstring& filename);
+
+	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
+		const std::wstring& filename,
+		const D3D_SHADER_MACRO* defines,
+		const std::string& entryPoint,
+		const std::string& target);
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
+		ID3D12Device* device,
+		ID3D12GraphicsCommandList* cmdList,
+		const void* initData,
+		UINT64 byteSize,
+		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+
 	struct SubmeshGeometry
 	{
 		UINT IndexCount = 0;
@@ -73,7 +89,7 @@ namespace DX
 
 		// DirectX::BoundingBox Bounds{};
 	};
-
+	
 	struct MeshGeometry
 	{
 		std::string Name{};
@@ -106,9 +122,9 @@ namespace DX
 		DirectX::XMFLOAT3 Intensity = { 0.5f,0.5f,0.5f };
 		float AttenuationStart = 1.0f;	// point/spot
 		DirectX::XMFLOAT3 Direction = { 0.0f,-1.0f,0.0f };	// spot/direction
-		float AttenuationEnd = 10.0f; // point/spot
-		DirectX::XMFLOAT3 Position = { 0.0f,0.0f,0.0f }; //point/spot
-		float SpotPower = 64.0f; // spot
+		float AttenuationEnd        = 10.0f; // point/spot
+		DirectX::XMFLOAT3 Position  = { 0.0f,0.0f,0.0f }; //point/spot
+		float SpotPower             = 64.0f; // spot
 	};
 
 	struct MaterialConstants
@@ -116,36 +132,32 @@ namespace DX
 		DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f,1.0f,1.0f,1.0f };
 		DirectX::XMFLOAT3 FresnelR0 = { 0.01f,0.01f,0.1f };
 		float Roughness = 0.25f;
-		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 	};
 
 	struct Material
 	{
 		std::string Name;
 
-		int MatCbIndex = -1;
-		int DiffuseSrvHeapIndex = -1;
-		int NormalSrvHeapIndex = -1;
-		int NumFrameDirty = FRAME_RESOURCES_NUM;
+		int MatCbIndex                   = -1;
+		int DiffuseSrvHeapIndex          = -1;
+		int NormalSrvHeapIndex           = -1;
+		int NumFrameDirty                = FRAME_RESOURCES_NUM;
 
-		DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-		DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-		float Roughness = 0.25f;
-		//DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4 DiffuseAlbedo  = { 1.0f, 1.0f, 1.0f, 1.0f };
+		DirectX::XMFLOAT3 FresnelR0      = { 0.01f, 0.01f, 0.01f };
+		float Roughness                  = 0.25f;
+		DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 	};
 
-	Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
-		const std::wstring& filename,
-		const D3D_SHADER_MACRO* defines,
-		const std::string& entryPoint,
-		const std::string& target);
+	struct Texture
+	{
+		std::string Name{};
+		std::wstring FileName{};
 
-	Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
-		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList,
-		const void* initData,
-		UINT64 byteSize,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+		Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
+		Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap;
+	};
 }
 
 #ifndef ThrowIfFailed

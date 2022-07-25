@@ -6,6 +6,7 @@
 #include <algorithm>
 
 using namespace DirectX;
+using DX::GeometryGenerator;
 
 GeometryGenerator::MeshData GeometryGenerator::CreateBox(float width, float height, float depth, uint32 numSubdivisions)
 {
