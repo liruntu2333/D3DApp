@@ -25,6 +25,8 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	Transparent,
+	AlphaTested,
 	Count
 };
 
@@ -107,8 +109,6 @@ private:
 	std::unique_ptr<DX::Waves> mWaves{};
 
 	DX::PassConstants mMainPassConstBuff;
-
-	bool mIsWireframe = false;
 
 	DirectX::XMFLOAT3 mEyePos{};
 	DirectX::XMFLOAT4X4 mView = DX::MathHelper::Identity4x4();

@@ -11,6 +11,7 @@
 #endif
 
 //#define TOON_SHADING
+#define FOG
 
 #include "lightingUtil.hlsli"
 
@@ -38,7 +39,7 @@ cbuffer cbPass : register(b1)
     float4x4 gViewProj;
     float4x4 gInvViewProj;
     float3   gEyePosW;
-    float    cbPerObjectPad1;
+    float    cbPad1;
     float2   gRenderTargetSize;
     float2   gInvRenderTargetSize;
     float    gNearZ;
@@ -47,6 +48,12 @@ cbuffer cbPass : register(b1)
     float    gDeltaTime;
 
     float4   gAmbientLight;
+
+    float4   gFogColor;
+    float    gFogStart;
+    float    gFogRange;
+    float2   cbPad2;
+
     Light    gLights[LIGHT_MAX];
 }
 

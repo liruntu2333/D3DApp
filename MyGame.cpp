@@ -176,14 +176,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
 
-	if (mIsWireframe)
-	{
-		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque_wireframe"].Get()));
-	}
-	else
-	{
-		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
-	}
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -215,6 +208,12 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
+
+	mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
+
+	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
 
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
@@ -291,11 +290,6 @@ void MyGame::OnMouseUp(WPARAM btnState, int x, int y)
 void MyGame::OnKeyboardInput(const GameTimer& gameTimer)
 {
 	const float dt = gameTimer.DeltaTime();
-
-	if (GetAsyncKeyState('1') & 0x8000)
-		mIsWireframe = true;
-	else
-		mIsWireframe = false;
 
 	if (GetAsyncKeyState(VK_LEFT) & 0x8000)
 		mSunTheta -= 1.0f * dt;
@@ -422,14 +416,14 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	mMainPassConstBuff.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 
 	auto sunDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
-	XMStoreFloat3(&mMainPassConstBuff.lights[0].Direction, sunDir);
-	mMainPassConstBuff.lights[0].Intensity = { 0.9f,0.9f,0.9f };
+	XMStoreFloat3(&mMainPassConstBuff.Lights[0].Direction, sunDir);
+	mMainPassConstBuff.Lights[0].Intensity = { 0.9f,0.9f,0.9f };
 
-	mMainPassConstBuff.lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mMainPassConstBuff.lights[1].Intensity = { 0.5f, 0.5f, 0.5f };
-	mMainPassConstBuff.lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mMainPassConstBuff.lights[2].Intensity = { 0.2f, 0.2f, 0.2f };
-
+	mMainPassConstBuff.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassConstBuff.Lights[1].Intensity = { 0.5f, 0.5f, 0.5f };
+	mMainPassConstBuff.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassConstBuff.Lights[2].Intensity = { 0.2f, 0.2f, 0.2f };
+	
 	const auto currPassCb = mCurrFrameResource->PassConstBuff.get();
 	currPassCb->CopyData(0, mMainPassConstBuff);
 }
@@ -550,7 +544,7 @@ void MyGame::LoadTextures()
 
 	auto fence = std::make_unique<Texture>();
 	fence->Name = "fenceTex";
-	fence->FileName = L"Textures/WoodCrate01.dds";
+	fence->FileName = L"Textures/WireFence.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -604,10 +598,11 @@ void MyGame::BuildRootSignature()
 
 void MyGame::BuildShadersAndInputLayout()
 {
-	//mShaders["standardVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
-	//mShaders["opaquePS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
-	mShaders["standardVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
-	mShaders["opaquePS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
+	//mShaders["defaultVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
+	//mShaders["defaultPS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
+	mShaders["defaultVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
+	mShaders["defaultPS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
+	mShaders["alphaTestedPS"] = LoadBinary(L"CompiledShaders/alphaTestedPS.cso");
 
 	mInputLayout =
 	{
@@ -766,36 +761,59 @@ void MyGame::BuildBoxGeometry()
 
 void MyGame::BuildPipelineStateObjects()
 {
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaque{};
-	opaque.InputLayout.pInputElementDescs = mInputLayout.data();
-	opaque.InputLayout.NumElements        = static_cast<UINT>(mInputLayout.size());
-	opaque.pRootSignature                 = mRootSignature.Get();
+	// PSO for opaque objects.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc{};
+	opaquePsoDesc.InputLayout.pInputElementDescs = mInputLayout.data();
+	opaquePsoDesc.InputLayout.NumElements        = static_cast<UINT>(mInputLayout.size());
+	opaquePsoDesc.pRootSignature                 = mRootSignature.Get();
 
-	opaque.VS.pShaderBytecode             = static_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer());
-	opaque.VS.BytecodeLength              = mShaders["standardVS"]->GetBufferSize();
-	opaque.PS.pShaderBytecode             = static_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer());
-	opaque.PS.BytecodeLength              = mShaders["opaquePS"]->GetBufferSize();
+	opaquePsoDesc.VS.pShaderBytecode             = static_cast<BYTE*>(mShaders["defaultVS"]->GetBufferPointer());
+	opaquePsoDesc.VS.BytecodeLength              = mShaders["defaultVS"]->GetBufferSize();
+	opaquePsoDesc.PS.pShaderBytecode             = static_cast<BYTE*>(mShaders["defaultPS"]->GetBufferPointer());
+	opaquePsoDesc.PS.BytecodeLength              = mShaders["defaultPS"]->GetBufferSize();
 
-	opaque.RasterizerState                = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaque.BlendState                     = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	opaque.DepthStencilState              = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	opaque.SampleMask                     = UINT_MAX;
-	opaque.PrimitiveTopologyType          = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	opaque.NumRenderTargets               = 1;
-	opaque.RTVFormats[0]                  = mBackBufferFormat;
+	opaquePsoDesc.RasterizerState                = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.BlendState                     = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState              = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask                     = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType          = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets               = 1;
+	opaquePsoDesc.RTVFormats[0]                  = mBackBufferFormat;
 
-	opaque.SampleDesc.Count               = mSampleCount;
-	opaque.SampleDesc.Quality             = 0;
+	opaquePsoDesc.SampleDesc.Count               = mSampleCount;
+	opaquePsoDesc.SampleDesc.Quality             = 0;
 
-	opaque.DSVFormat                      = mDepthStencilFormat;
+	opaquePsoDesc.DSVFormat                      = mDepthStencilFormat;
 
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaque,
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["opaque"].GetAddressOf())));
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframe = opaque;
-	opaqueWireframe.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframe,
-		IID_PPV_ARGS(mPipelineStateObjects["opaque_wireframe"].GetAddressOf())));
+	// PSO for transparent objects.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC trnPsoDesc = opaquePsoDesc;
+
+	D3D12_RENDER_TARGET_BLEND_DESC trnBlendDesc{};
+	trnBlendDesc.BlendEnable           = true;
+	trnBlendDesc.LogicOpEnable         = false;
+	trnBlendDesc.SrcBlend              = D3D12_BLEND_SRC_ALPHA;
+	trnBlendDesc.DestBlend             = D3D12_BLEND_INV_SRC_ALPHA;
+	trnBlendDesc.BlendOp               = D3D12_BLEND_OP_ADD;
+	trnBlendDesc.SrcBlendAlpha         = D3D12_BLEND_ONE;
+	trnBlendDesc.DestBlendAlpha        = D3D12_BLEND_ZERO;
+	trnBlendDesc.BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+	trnBlendDesc.LogicOp               = D3D12_LOGIC_OP_NOOP;
+	trnBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	trnPsoDesc.BlendState.RenderTarget[0] = trnBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&trnPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["transparent"].GetAddressOf())));
+
+	// PSO for Alpha tested objects.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestPsoDesc = opaquePsoDesc;
+	alphaTestPsoDesc.PS.pShaderBytecode       = static_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer());
+	alphaTestPsoDesc.PS.BytecodeLength        = mShaders["alphaTestedPS"]->GetBufferSize();
+	alphaTestPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	md3dDevice->CreateGraphicsPipelineState(&alphaTestPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["alphaTested"].GetAddressOf()));
 }
 
 void MyGame::BuildFrameResources()
@@ -830,7 +848,7 @@ void MyGame::BuildMaterials()
 	water->Name                = "water";
 	water->MatCbIndex          = 1;
 	water->DiffuseSrvHeapIndex = 1;
-	water->DiffuseAlbedo       = { 1.0f, 1.0f, 1.0f, 1.0f };
+	water->DiffuseAlbedo       = { 1.0f, 1.0f, 1.0f, 0.5f };
 	water->FresnelR0           = XMFLOAT3(0.2f, 0.2f, 0.2f);
 	water->Roughness           = 0.0f;
 
@@ -864,20 +882,20 @@ void MyGame::BuildRenderItems()
 
 	mWavesRenderItem = wave.get();
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(wave.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)].push_back(wave.get());
 
-	auto grid = std::make_unique<RenderItem>();
-	grid->World              = MathHelper::Identity4x4();
-	XMStoreFloat4x4(&grid->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
-	grid->ObjConstBuffIndex  = 1;
-	grid->Material           = mMaterials["grass"].get();
-	grid->Geometry           = mGeometries["landGeo"].get();
-	grid->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	grid->IndexCount         = grid->Geometry->DrawArgs["grid"].IndexCount;
-	grid->StartIndexLocation = grid->Geometry->DrawArgs["grid"].StartIndexLocation;
-	grid->BaseVertexLocation = grid->Geometry->DrawArgs["grid"].BaseVertexLocation;
+	auto land = std::make_unique<RenderItem>();
+	land->World              = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	land->ObjConstBuffIndex  = 1;
+	land->Material           = mMaterials["grass"].get();
+	land->Geometry           = mGeometries["landGeo"].get();
+	land->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	land->IndexCount         = land->Geometry->DrawArgs["grid"].IndexCount;
+	land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
+	land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(grid.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
 
 	auto box = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&box->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
@@ -889,10 +907,10 @@ void MyGame::BuildRenderItems()
 	box->StartIndexLocation = box->Geometry->DrawArgs["box"].StartIndexLocation;
 	box->BaseVertexLocation = box->Geometry->DrawArgs["box"].BaseVertexLocation;
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(box.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(box.get());
 
 	mRenderItems.push_back(std::move(wave));	// waves
-	mRenderItems.push_back(std::move(grid));	// hills
+	mRenderItems.push_back(std::move(land));	// hills
 	mRenderItems.push_back(std::move(box));	// box
 }
 

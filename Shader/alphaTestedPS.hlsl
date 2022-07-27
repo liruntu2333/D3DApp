@@ -4,6 +4,9 @@ float4 main(VertexOut pin) : SV_Target
 {
     float4 diffuseAlbedo = gDiffuseMap.Sample(gSamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
 
+    // The only thing different from defaultPS.
+    clip(diffuseAlbedo.a - 0.1f);
+
     pin.NormalW = normalize(pin.NormalW);
 
     float3 eyeDir = gEyePosW - pin.PosW;
