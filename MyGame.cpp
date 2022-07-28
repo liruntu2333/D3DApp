@@ -112,7 +112,7 @@ bool MyGame::Initialize()
 	BuildRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
-	BuildSceneGeometry();
+	BuildRoomGeometry();
 	BuildSkullGeometry();
 	BuildMaterials();
 	BuildRenderItems();
@@ -219,10 +219,12 @@ void MyGame::Update(const GameTimer& gameTimer)
 			CloseHandle(handle);
 		}
 	}
+
 	AnimateMaterials(gameTimer);
 	UpdateObjectConstBuffs(gameTimer);
 	UpdateMaterialConstBuffs(gameTimer);
 	UpdateMainPassConstBuffs(gameTimer);
+	UpdateReflectedPassConstBuffs(gameTimer);
 }
 
 void MyGame::Draw(const GameTimer& gameTimer)
@@ -232,18 +234,12 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
 
-	if (mIsWireframe)
-	{
-		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque_wireframe"].Get()));
-	}
-	else
-	{
-		ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
-	}
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
+	// Clear MSAA render target & depth stencil.
 	{
 		D3D12_RESOURCE_BARRIER barrier = 
 			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
@@ -266,10 +262,33 @@ void MyGame::Draw(const GameTimer& gameTimer)
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
+	UINT passCbByteSize = CalcConstantBufferByteSize(sizeof(PassConstants));
+	auto mainPassBuffAdr = mCurrFrameResource->PassConstBuff->Resource()->GetGPUVirtualAddress();
+	auto reflPassBuffAdr = mainPassBuffAdr + passCbByteSize;
 
+	// opaque objects pass
+	mCommandList->SetGraphicsRootConstantBufferView(2, mainPassBuffAdr);
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
+
+	// mark mirror into stencil pass
+	mCommandList->OMSetStencilRef(1);
+	mCommandList->SetPipelineState(mPipelineStateObjects["markStencilMirrors"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Mirrors)]);
+
+	// reflection in mirror pass
+	mCommandList->SetGraphicsRootConstantBufferView(2, reflPassBuffAdr);
+	mCommandList->SetPipelineState(mPipelineStateObjects["drawStencilReflections"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Reflected)]);
+
+	// transparent mirror pass
+	mCommandList->SetGraphicsRootConstantBufferView(2, mainPassBuffAdr);
+	mCommandList->OMSetStencilRef(0);
+	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
+
+	// shadow pass
+	mCommandList->SetPipelineState(mPipelineStateObjects["shadow"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Shadow)]);
 
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
@@ -326,12 +345,12 @@ void MyGame::OnMouseMove(WPARAM btnState, int x, int y)
 	}
 	else if ((btnState & MK_RBUTTON) != 0)
 	{
-		const float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
-		const float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
+		const float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
+		const float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
 
 		mRadius += dx - dy;
 
-		mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
+		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
 	}
 
 	mLastMousePos.x = x;
@@ -345,10 +364,43 @@ void MyGame::OnMouseUp(WPARAM btnState, int x, int y)
 
 void MyGame::OnKeyboardInput(const GameTimer& gameTimer)
 {
-	//if (GetAsyncKeyState('1') & 0x8000)
-	//	mIsWireframe = true;
-	//else
-	//	mIsWireframe = false;
+	using namespace DirectX;
+
+	const float dt = gameTimer.DeltaTime();
+
+	if (GetAsyncKeyState('A') & 0x8000)
+		mSkullTranslation.x -= 1.0f * dt;
+
+	if (GetAsyncKeyState('D') & 0x8000)
+		mSkullTranslation.x += 1.0f * dt;
+
+	if (GetAsyncKeyState('W') & 0x8000)
+		mSkullTranslation.y += 1.0f * dt;
+
+	if (GetAsyncKeyState('S') & 0x8000)
+		mSkullTranslation.y -= 1.0f * dt;
+
+	mSkullTranslation.y = MathHelper::Max(mSkullTranslation.y, 0.0f);
+
+	XMMATRIX skullRotation = XMMatrixRotationY(0.5f * XM_PI);
+	XMMATRIX skullScale = XMMatrixScaling(0.45f, 0.45f, 0.45f);
+	XMMATRIX skullOffset = XMMatrixTranslation(mSkullTranslation.x, mSkullTranslation.y, mSkullTranslation.z);
+	XMMATRIX skullWorld = skullRotation * skullScale * skullOffset;
+	XMStoreFloat4x4(&mSkullRenderItem->World, skullWorld);
+
+	XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	XMMATRIX reflect = XMMatrixReflect(mirrorPlane);
+	XMStoreFloat4x4(&mReflectedSkullRenderItem->World, skullWorld * reflect);
+
+	XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR toMainLight = -XMLoadFloat3(&mMainPassConstBuff.Lights[0].Direction);
+	XMMATRIX shadow = XMMatrixShadow(shadowPlane, toMainLight);
+	XMMATRIX shadowOffset = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
+	XMStoreFloat4x4(&mShadowedSkullRenderItem->World, skullWorld * shadow * shadowOffset);
+
+	mSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
+	mReflectedSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
+	mShadowedSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
 }
 
 void MyGame::UpdateCamera(const GameTimer& gameTimer)
@@ -450,23 +502,41 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	mMainPassConstBuff.TotalTime = gameTimer.TotalTime();
 	mMainPassConstBuff.DeltaTime = gameTimer.DeltaTime();
 	mMainPassConstBuff.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	mMainPassConstBuff.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	mMainPassConstBuff.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	mMainPassConstBuff.Lights[0].Intensity = { 0.8f, 0.8f, 0.8f };
+	mMainPassConstBuff.Lights[0].Intensity = { 0.6f, 0.6f, 0.6f };
 	mMainPassConstBuff.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mMainPassConstBuff.Lights[1].Intensity = { 0.4f, 0.4f, 0.4f };
+	mMainPassConstBuff.Lights[1].Intensity = { 0.3f, 0.3f, 0.3f };
 	mMainPassConstBuff.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mMainPassConstBuff.Lights[2].Intensity = { 0.2f, 0.2f, 0.2f };
+	mMainPassConstBuff.Lights[2].Intensity = { 0.15f, 0.15f, 0.15f };
 
 	const auto currPassCb = mCurrFrameResource->PassConstBuff.get();
 	currPassCb->CopyData(0, mMainPassConstBuff);
+}
+
+void MyGame::UpdateReflectedPassConstBuffs(const GameTimer& gameTimer)
+{
+	using namespace DirectX;
+
+	mReflectedPassConstBuff = mMainPassConstBuff;
+	XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	XMMATRIX reflect = XMMatrixReflect(mirrorPlane);
+
+	for (int i = 0; i < 3; ++i)
+	{
+		XMVECTOR lightDir = XMLoadFloat3(&mMainPassConstBuff.Lights[i].Direction);
+		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, reflect);
+		XMStoreFloat3(&mReflectedPassConstBuff.Lights[i].Direction, reflectedLightDir);
+	}
+
+	auto currPassCb = mCurrFrameResource->PassConstBuff.get();
+	currPassCb->CopyData(1, mReflectedPassConstBuff);
 }
 
 void MyGame::LoadTextures()
 {
 	auto brick = std::make_unique<Texture>();
 	brick->Name = "bricksTex";
-	brick->FileName = L"Textures/bricks.dds";
+	brick->FileName = L"Textures/bricks3.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -620,7 +690,7 @@ void MyGame::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
 	mShaders["opaquePS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
-	mShaders["alphaTestedPS"] = LoadBinary(L"CompiledShaders/alphaTestedPS.cso");
+	//mShaders["alphaTestedPS"] = LoadBinary(L"CompiledShaders/alphaTestedPS.cso");
 
 	mInputLayout =
 	{
@@ -630,7 +700,7 @@ void MyGame::BuildShadersAndInputLayout()
 	};
 }
 
-void MyGame::BuildSceneGeometry()
+void MyGame::BuildRoomGeometry()
 {
 	using namespace DirectX;
 
@@ -800,6 +870,7 @@ void MyGame::BuildSkullGeometry()
 
 void MyGame::BuildPipelineStateObjects()
 {
+	// PSO for opaque objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDec{};
 	opaquePsoDec.InputLayout.pInputElementDescs = mInputLayout.data();
 	opaquePsoDec.InputLayout.NumElements        = static_cast<UINT>(mInputLayout.size());
@@ -830,18 +901,18 @@ void MyGame::BuildPipelineStateObjects()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC trnPsoDesc = opaquePsoDec;
 
 	// PSO for transparent objects.
-	D3D12_RENDER_TARGET_BLEND_DESC trnBlendDesc{};
-	trnBlendDesc.BlendEnable = true;
-	trnBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	trnBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	CD3DX12_BLEND_DESC trnBlendDesc(D3D12_DEFAULT);
+	trnBlendDesc.RenderTarget[0].BlendEnable = true;
+	trnBlendDesc.RenderTarget[0].SrcBlend    = D3D12_BLEND_SRC_ALPHA;
+	trnBlendDesc.RenderTarget[0].DestBlend   = D3D12_BLEND_INV_SRC_ALPHA;
 
-	trnPsoDesc.BlendState.RenderTarget[0] = trnBlendDesc;
+	trnPsoDesc.BlendState = trnBlendDesc;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&trnPsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["transparent"].GetAddressOf())));
 
 	// PSO for stencil mirror.
-	D3D12_DEPTH_STENCIL_DESC mirrorDsDesc{};
+	CD3DX12_DEPTH_STENCIL_DESC mirrorDsDesc(D3D12_DEFAULT);
 	mirrorDsDesc.DepthWriteMask          = D3D12_DEPTH_WRITE_MASK_ZERO;
 	mirrorDsDesc.StencilEnable           = true;
 	mirrorDsDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
@@ -851,34 +922,34 @@ void MyGame::BuildPipelineStateObjects()
 	mirrorBlendDesc.RenderTarget[0].RenderTargetWriteMask = 0;
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC markMirrorPsoDesc = opaquePsoDec;
-	markMirrorPsoDesc.BlendState = mirrorBlendDesc;
+	markMirrorPsoDesc.BlendState        = mirrorBlendDesc;
 	markMirrorPsoDesc.DepthStencilState = mirrorDsDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorPsoDesc,
-		IID_PPV_ARGS(mPipelineStateObjects["markStencilMirror"].GetAddressOf())));
+		IID_PPV_ARGS(mPipelineStateObjects["markStencilMirrors"].GetAddressOf())));
 
 	// PSO for stencil reflection.
-	D3D12_DEPTH_STENCIL_DESC reflectionDsDec{};
-	reflectionDsDec.StencilEnable = true;
+	CD3DX12_DEPTH_STENCIL_DESC reflectionDsDec(D3D12_DEFAULT);
+	reflectionDsDec.StencilEnable         = true;
 	reflectionDsDec.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
-	reflectionDsDec.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL; // does not matter
+	reflectionDsDec.BackFace.StencilFunc  = D3D12_COMPARISON_FUNC_EQUAL; // does not matter
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC reflectionsPsoDesc = opaquePsoDec;
-	reflectionsPsoDesc.DepthStencilState = reflectionDsDec;
 	reflectionsPsoDesc.RasterizerState.FrontCounterClockwise = true;
+	reflectionsPsoDesc.DepthStencilState = reflectionDsDec;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&reflectionsPsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["drawStencilReflections"].GetAddressOf())));
 
 	// PSO for shadow object.
-	D3D12_DEPTH_STENCIL_DESC shadowDsDesc{};
-	shadowDsDesc.StencilEnable = true;
+	CD3DX12_DEPTH_STENCIL_DESC shadowDsDesc(D3D12_DEFAULT);
+	shadowDsDesc.StencilEnable           = true;
 	shadowDsDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
-	shadowDsDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
-	shadowDsDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_INCR; // does not matter
-	shadowDsDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL; // does not mater
+	shadowDsDesc.FrontFace.StencilFunc   = D3D12_COMPARISON_FUNC_EQUAL;
+	shadowDsDesc.BackFace.StencilPassOp  = D3D12_STENCIL_OP_INCR; // does not matter
+	shadowDsDesc.BackFace.StencilFunc    = D3D12_COMPARISON_FUNC_EQUAL; // does not mater
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = trnPsoDesc;
 	shadowPsoDesc.DepthStencilState = shadowDsDesc;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&reflectionsPsoDesc,
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["shadow"].GetAddressOf())));
 }
 
@@ -886,8 +957,11 @@ void MyGame::BuildFrameResources()
 {
 	for (int i = 0; i < FRAME_RESOURCES_NUM; ++i)
 	{
-		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, 
-			static_cast<UINT>(mRenderItems.size()), static_cast<UINT>(mMaterials.size())));
+		mFrameResources.push_back(std::make_unique<FrameResource>(
+			md3dDevice.Get(), 
+			2, // need 2 pass constant buffers, one for main pass, one for reflect pass
+			static_cast<UINT>(mRenderItems.size()), 
+			static_cast<UINT>(mMaterials.size())));
 	}
 }
 
@@ -944,8 +1018,9 @@ void MyGame::BuildRenderItems()
 	auto shadowedSkull = std::make_unique<RenderItem>();
 	*shadowedSkull = *skull;
 	shadowedSkull->ObjConstBuffIndex = 4;
+	shadowedSkull->Mat = mMaterials["shadowMat"].get();
 	mShadowedSkullRenderItem = shadowedSkull.get();
-	mRenderItemLayer[static_cast<int>(RenderLayer::Reflected)].push_back(shadowedSkull.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::Shadow)].push_back(shadowedSkull.get());
 
 	auto mirror = std::make_unique<RenderItem>();
 	mirror->World = MathHelper::Identity4x4();
@@ -954,9 +1029,9 @@ void MyGame::BuildRenderItems()
 	mirror->Mat = mMaterials["iceMirror"].get();
 	mirror->Geo = mGeometries["roomGeo"].get();
 	mirror->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	mirror->IndexCount = skull->Geo->DrawArgs["mirror"].IndexCount;
-	mirror->StartIndexLocation = skull->Geo->DrawArgs["mirror"].StartIndexLocation;
-	mirror->BaseVertexLocation = skull->Geo->DrawArgs["mirror"].BaseVertexLocation;
+	mirror->IndexCount = mirror->Geo->DrawArgs["mirror"].IndexCount;
+	mirror->StartIndexLocation = mirror->Geo->DrawArgs["mirror"].StartIndexLocation;
+	mirror->BaseVertexLocation = mirror->Geo->DrawArgs["mirror"].BaseVertexLocation;
 	mRenderItemLayer[static_cast<int>(RenderLayer::Mirrors)].push_back(mirror.get());
 	mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)].push_back(mirror.get());
 
@@ -973,50 +1048,50 @@ void MyGame::BuildMaterials()
 	using namespace DirectX;
 
 	auto bricks = std::make_unique<Material>();
-	bricks->Name = "bricks";
-	bricks->MatCbIndex = 0;
+	bricks->Name                = "bricks";
+	bricks->MatCbIndex          = 0;
 	bricks->DiffuseSrvHeapIndex = 0;
-	bricks->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	bricks->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	bricks->Roughness = 0.25f;
+	bricks->DiffuseAlbedo       = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	bricks->FresnelR0           = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	bricks->Roughness           = 0.25f;
 
 	auto checkerTile = std::make_unique<Material>();
-	checkerTile->Name = "checkerTile";
-	checkerTile->MatCbIndex = 1;
+	checkerTile->Name                = "checkerTile";
+	checkerTile->MatCbIndex          = 1;
 	checkerTile->DiffuseSrvHeapIndex = 1;
-	checkerTile->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	checkerTile->FresnelR0 = XMFLOAT3(0.07f, 0.07f, 0.07f);
-	checkerTile->Roughness = 0.3f;
+	checkerTile->DiffuseAlbedo       = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	checkerTile->FresnelR0           = XMFLOAT3(0.07f, 0.07f, 0.07f);
+	checkerTile->Roughness           = 0.3f;
 
 	auto iceMirror = std::make_unique<Material>();
-	iceMirror->Name = "iceMirror";
-	iceMirror->MatCbIndex = 2;
+	iceMirror->Name                = "iceMirror";
+	iceMirror->MatCbIndex          = 2;
 	iceMirror->DiffuseSrvHeapIndex = 2;
-	iceMirror->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.3f);
-	iceMirror->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	iceMirror->Roughness = 0.5f;
+	iceMirror->DiffuseAlbedo       = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.3f);
+	iceMirror->FresnelR0           = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	iceMirror->Roughness           = 0.5f;
 
 	auto skullMat = std::make_unique<Material>();
-	skullMat->Name = "skullMat";
-	skullMat->MatCbIndex = 3;
+	skullMat->Name                = "skullMat";
+	skullMat->MatCbIndex          = 3;
 	skullMat->DiffuseSrvHeapIndex = 3;
-	skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	skullMat->Roughness = 0.3f;
+	skullMat->DiffuseAlbedo       = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	skullMat->FresnelR0           = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	skullMat->Roughness           = 0.3f;
 
 	auto shadowMat = std::make_unique<Material>();
-	shadowMat->Name = "shadowMat";
-	shadowMat->MatCbIndex = 4;
+	shadowMat->Name                = "shadowMat";
+	shadowMat->MatCbIndex          = 4;
 	shadowMat->DiffuseSrvHeapIndex = 3;
-	shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
-	shadowMat->FresnelR0 = XMFLOAT3(0.001f, 0.001f, 0.001f);
-	shadowMat->Roughness = 0.0f;
+	shadowMat->DiffuseAlbedo       = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
+	shadowMat->FresnelR0           = XMFLOAT3(0.001f, 0.001f, 0.001f);
+	shadowMat->Roughness           = 0.0f;
 
-	mMaterials[bricks->Name] = std::move(bricks);
+	mMaterials[bricks->Name]      = std::move(bricks);
 	mMaterials[checkerTile->Name] = std::move(checkerTile);
-	mMaterials[iceMirror->Name] = std::move(iceMirror);
-	mMaterials[skullMat->Name] = std::move(skullMat);
-	mMaterials[shadowMat->Name] = std::move(shadowMat);
+	mMaterials[iceMirror->Name]   = std::move(iceMirror);
+	mMaterials[skullMat->Name]    = std::move(skullMat);
+	mMaterials[shadowMat->Name]   = std::move(shadowMat);
 }
 
 void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const

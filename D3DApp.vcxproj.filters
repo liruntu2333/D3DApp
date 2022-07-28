@@ -82,36 +82,28 @@
     <FxCompile Include="shader\colorPS.hlsl">
       <Filter>Asset\Shader</Filter>
     </FxCompile>
-    <FxCompile Include="shader\defaultPS.hlsl">
-      <Filter>shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultVS.hlsl">
-      <Filter>shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultPS.hlsl">
-      <Filter>Asset\Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultVS.hlsl">
-      <Filter>Asset\Shader</Filter>
-    </FxCompile>
+    <FxCompile Include="shader\defaultPS.hlsl" />
+    <FxCompile Include="shader\defaultVS.hlsl" />
     <FxCompile Include="Shader\alphaTestedPS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Asset\Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultPS.hlsl">
+      <Filter>Asset\Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultVS.hlsl">
+      <Filter>Asset\Shader</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
       <Filter>Asset\Shader</Filter>
     </None>
+    <None Include="shader\default.hlsli" />
+    <None Include="shader\lightingUtil.hlsli" />
     <None Include="shader\default.hlsli">
-      <Filter>shader</Filter>
-    </None>
-    <None Include="shader\lightingUtil.hlsli">
-      <Filter>shader</Filter>
-    </None>
-    <None Include="shader\lightingUtil.hlsli">
       <Filter>Asset\Shader</Filter>
     </None>
-    <None Include="shader\default.hlsli">
+    <None Include="shader\lightingUtil.hlsli">
       <Filter>Asset\Shader</Filter>
     </None>
   </ItemGroup>

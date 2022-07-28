@@ -9,7 +9,7 @@ struct RenderItem
 {
 	RenderItem()                           = default;
 	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 TexTransform = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 TexTransform	   = DX::MathHelper::Identity4x4();
 
 	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
 	UINT ObjConstBuffIndex                 = -1;
@@ -53,24 +53,26 @@ private:
 	void OnMouseDown(WPARAM btnState, int x, int y) override;
 	void OnMouseMove(WPARAM btnState, int x, int y) override;
 	void OnMouseUp  (WPARAM btnState, int x, int y) override;
+	void OnKeyboardInput               (const GameTimer& gameTimer);
 
-	void OnKeyboardInput          (const GameTimer& gameTimer);
-	void UpdateCamera             (const GameTimer& gameTimer);
-	void AnimateMaterials		  (const GameTimer& gameTimer);
-	void UpdateObjectConstBuffs   (const GameTimer& gameTimer) const;
-	void UpdateMaterialConstBuffs (const GameTimer& gameTimer) const;
-	void UpdateMainPassConstBuffs (const GameTimer& gameTimer);
+	void UpdateCamera                  (const GameTimer& gameTimer);
+	void AnimateMaterials		       (const GameTimer& gameTimer);
+	void UpdateObjectConstBuffs        (const GameTimer& gameTimer) const;
+	void UpdateMaterialConstBuffs      (const GameTimer& gameTimer) const;
+	void UpdateMainPassConstBuffs      (const GameTimer& gameTimer);
+	void UpdateReflectedPassConstBuffs (const GameTimer& gameTimer);
 
 	void LoadTextures();
 	void BuildDescriptorHeaps();
 	void BuildRootSignature();
 	void BuildShadersAndInputLayout();
-	void BuildSceneGeometry();
+	void BuildRoomGeometry();
 	void BuildSkullGeometry();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();
 	void BuildMaterials();
 	void BuildRenderItems();
+
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, 
 		const std::vector<RenderItem*>& renderItems) const;
 
@@ -108,16 +110,17 @@ private:
 	RenderItem* mShadowedSkullRenderItem  = nullptr;
 
 	DX::PassConstants mMainPassConstBuff{};
+	DX::PassConstants mReflectedPassConstBuff{};
 
-	bool mIsWireframe = false;
+	DirectX::XMFLOAT3 mSkullTranslation = { 0.0f,1.0f,-5.0f };
 
 	DirectX::XMFLOAT3 mEyePos{};
 	DirectX::XMFLOAT4X4 mView = DX::MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 mProj = DX::MathHelper::Identity4x4();
 
-	float mTheta = 1.5f * DirectX::XM_PI;
-	float mPhi = DirectX::XM_PI * 0.2f;
-	float mRadius = 15.0f;
+	float mTheta = 1.24f * DirectX::XM_PI;
+	float mPhi = DirectX::XM_PI * 0.42f;
+	float mRadius = 12.0f;
 
 	POINT mLastMousePos{};
 };
