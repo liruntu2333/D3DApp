@@ -16,59 +16,62 @@
     <Filter Include="Asset\Shader">
       <UniqueIdentifier>{5631c308-0b41-4363-8ff7-f21631376dd8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Core">
+      <UniqueIdentifier>{d681b130-608b-4e29-922d-8028b6cb92dc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="D3DUtil.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="D3DApp.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="D3DUtil.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameResource.cpp">
+      <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="GameTimer.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryGenerator.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="MathHelper.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Waves.cpp">
+      <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="MyGame.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="MathHelper.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="GeometryGenerator.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="FrameResource.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Waves.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="D3DUtil.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="UploadBuffer.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="D3DApp.h">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
     </ClInclude>
-    <ClInclude Include="GameTimer.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="MathHelper.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="UploadBuffer.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="MyGame.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryGenerator.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="D3DUtil.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="FrameResource.h">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTimer.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MathHelper.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="Waves.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MyGame.h">
       <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
@@ -79,34 +82,34 @@
     <FxCompile Include="shader\colorPS.hlsl">
       <Filter>Asset\Shader</Filter>
     </FxCompile>
-    <FxCompile Include="shader\defaultVS.hlsl">
-      <Filter>Asset\Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultPS.hlsl">
-      <Filter>Asset\Shader</Filter>
-    </FxCompile>
     <FxCompile Include="shader\defaultPS.hlsl">
       <Filter>shader</Filter>
     </FxCompile>
     <FxCompile Include="shader\defaultVS.hlsl">
       <Filter>shader</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultPS.hlsl">
+      <Filter>Asset\Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultVS.hlsl">
+      <Filter>Asset\Shader</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
       <Filter>Asset\Shader</Filter>
     </None>
-    <None Include="shader\lightingUtil.hlsli">
-      <Filter>Asset\Shader</Filter>
-    </None>
-    <None Include="shader\default.hlsli">
-      <Filter>Asset\Shader</Filter>
-    </None>
     <None Include="shader\default.hlsli">
       <Filter>shader</Filter>
     </None>
     <None Include="shader\lightingUtil.hlsli">
       <Filter>shader</Filter>
+    </None>
+    <None Include="shader\lightingUtil.hlsli">
+      <Filter>Asset\Shader</Filter>
+    </None>
+    <None Include="shader\default.hlsli">
+      <Filter>Asset\Shader</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

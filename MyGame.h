@@ -26,6 +26,10 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	Mirrors,
+	Reflected,
+	Transparent,
+	Shadow,
 	Count
 };
 
@@ -98,6 +102,10 @@ private:
 
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
+
+	RenderItem* mSkullRenderItem          = nullptr;
+	RenderItem* mReflectedSkullRenderItem = nullptr;
+	RenderItem* mShadowedSkullRenderItem  = nullptr;
 
 	DX::PassConstants mMainPassConstBuff{};
 
