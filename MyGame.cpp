@@ -882,7 +882,6 @@ void MyGame::BuildPipelineStateObjects()
 	opaquePsoDec.PS.BytecodeLength              = mShaders["opaquePS"]->GetBufferSize();
 
 	opaquePsoDec.RasterizerState                = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDec.RasterizerState.FillMode       = D3D12_FILL_MODE_SOLID;
 	opaquePsoDec.BlendState                     = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDec.DepthStencilState              = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDec.SampleMask                     = UINT_MAX;
