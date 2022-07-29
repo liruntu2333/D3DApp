@@ -280,6 +280,9 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetPipelineState(mPipelineStateObjects["drawStencilReflections"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Reflected)]);
 
+	mCommandList->SetPipelineState(mPipelineStateObjects["reflTrn"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::ReflectedTransparent)]);
+
 	// transparent mirror pass
 	mCommandList->SetGraphicsRootConstantBufferView(2, mainPassBuffAdr);
 	mCommandList->OMSetStencilRef(0);
@@ -397,10 +400,12 @@ void MyGame::OnKeyboardInput(const GameTimer& gameTimer)
 	XMMATRIX shadow = XMMatrixShadow(shadowPlane, toMainLight);
 	XMMATRIX shadowOffset = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
 	XMStoreFloat4x4(&mShadowedSkullRenderItem->World, skullWorld * shadow * shadowOffset);
+	XMStoreFloat4x4(&mReflectedShadowedSkullRenderItem->World, skullWorld * shadow * shadowOffset * reflect);
 
 	mSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
 	mReflectedSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
 	mShadowedSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
+	mReflectedShadowedSkullRenderItem->NumFrameDirty = FRAME_RESOURCES_NUM;
 }
 
 void MyGame::UpdateCamera(const GameTimer& gameTimer)
@@ -536,7 +541,7 @@ void MyGame::LoadTextures()
 {
 	auto brick = std::make_unique<Texture>();
 	brick->Name = "bricksTex";
-	brick->FileName = L"Textures/bricks3.dds";
+	brick->FileName = L"Textures/bricks2.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -550,7 +555,7 @@ void MyGame::LoadTextures()
 
 	auto checkBoard = std::make_unique<Texture>();
 	checkBoard->Name = "checkboardTex";
-	checkBoard->FileName = L"Textures/checkboard.dds";
+	checkBoard->FileName = L"Textures/tile.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -716,10 +721,10 @@ void MyGame::BuildRoomGeometry()
 		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
 		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
 
-		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), // 8 
-		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
-		Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
+		Vertex(6.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), // 8 
+		Vertex(6.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
+		Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
 
 		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f), // 12
 		Vertex(-3.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
@@ -729,8 +734,8 @@ void MyGame::BuildRoomGeometry()
 		// Mirror
 		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f), // 16
 		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
-		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)
+		Vertex(6.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
+		Vertex(6.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)
 	};
 
 	std::array<std::int16_t, 30> indices =
@@ -950,6 +955,11 @@ void MyGame::BuildPipelineStateObjects()
 	shadowPsoDesc.DepthStencilState = shadowDsDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["shadow"].GetAddressOf())));
+
+	// PSO for reflected shadow.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC reflShadowPsoDesc = shadowPsoDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&reflShadowPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["reflTrn"].GetAddressOf())));
 }
 
 void MyGame::BuildFrameResources()
@@ -1034,12 +1044,28 @@ void MyGame::BuildRenderItems()
 	mRenderItemLayer[static_cast<int>(RenderLayer::Mirrors)].push_back(mirror.get());
 	mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)].push_back(mirror.get());
 
+	auto reflectedFloor = std::make_unique<RenderItem>();
+	*reflectedFloor = *floor;
+	XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	XMMATRIX reflect = XMMatrixReflect(mirrorPlane);
+	XMStoreFloat4x4(&reflectedFloor->World, XMMatrixIdentity() * reflect);
+	reflectedFloor->ObjConstBuffIndex = 6;
+	mRenderItemLayer[static_cast<int>(RenderLayer::Reflected)].push_back(reflectedFloor.get());
+
+	auto reflectedShadowedSkull = std::make_unique<RenderItem>();
+	*reflectedShadowedSkull = *shadowedSkull;
+	reflectedShadowedSkull->ObjConstBuffIndex = 7;
+	mReflectedShadowedSkullRenderItem = reflectedShadowedSkull.get();
+	mRenderItemLayer[static_cast<int>(RenderLayer::ReflectedTransparent)].push_back(reflectedShadowedSkull.get());
+
 	mRenderItems.push_back(std::move(floor));
 	mRenderItems.push_back(std::move(wall));
 	mRenderItems.push_back(std::move(skull));
 	mRenderItems.push_back(std::move(reflectedSkull));
 	mRenderItems.push_back(std::move(shadowedSkull));
 	mRenderItems.push_back(std::move(mirror));
+	mRenderItems.push_back(std::move(reflectedFloor));
+	mRenderItems.push_back(std::move(reflectedShadowedSkull));
 }
 
 void MyGame::BuildMaterials()

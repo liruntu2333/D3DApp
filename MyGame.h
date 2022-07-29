@@ -30,6 +30,7 @@ enum class RenderLayer : int
 	Reflected,
 	Transparent,
 	Shadow,
+	ReflectedTransparent,
 	Count
 };
 
@@ -108,6 +109,7 @@ private:
 	RenderItem* mSkullRenderItem          = nullptr;
 	RenderItem* mReflectedSkullRenderItem = nullptr;
 	RenderItem* mShadowedSkullRenderItem  = nullptr;
+	RenderItem* mReflectedShadowedSkullRenderItem  = nullptr;
 
 	DX::PassConstants mMainPassConstBuff{};
 	DX::PassConstants mReflectedPassConstBuff{};
