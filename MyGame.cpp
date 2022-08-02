@@ -54,7 +54,8 @@ bool MyGame::Initialize()
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildLandGeometry();
-	BuildWavesGeometryBuffers();
+	BuildWavesGeometry();
+	BuildTreeSpriteGeometry();
 	BuildBoxGeometry();
 	BuildMaterials();
 	BuildRenderItems();
@@ -211,6 +212,9 @@ void MyGame::Draw(const GameTimer& gameTimer)
 
 	mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
+
+	mCommandList->SetPipelineState(mPipelineStateObjects["treeSprite"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)]);
 
 	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
@@ -491,14 +495,16 @@ void MyGame::BuildDescriptorHeaps()
 	auto grass = mTextures["grassTex"]->Resource;
 	auto water = mTextures["waterTex"]->Resource;
 	auto fence = mTextures["fenceTex"]->Resource;
+	auto trees = mTextures["treeArrayTex"]->Resource;
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
+	
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = grass->GetDesc().Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
+	// Set to -1 to indicate all the mipmap levels from MostDetailedMip on down to least detailed.
 	srvDesc.Texture2D.MipLevels = -1;
 	md3dDevice->CreateShaderResourceView(grass.Get(), &srvDesc, hDescriptor);
 
@@ -509,6 +515,15 @@ void MyGame::BuildDescriptorHeaps()
 	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 	srvDesc.Format = fence->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(fence.Get(), &srvDesc, hDescriptor);
+
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+	srvDesc.Format = trees->GetDesc().Format;
+	srvDesc.Texture2DArray.MostDetailedMip = 0;
+	srvDesc.Texture2DArray.MipLevels = -1;
+	srvDesc.Texture2DArray.FirstArraySlice = 0;
+	srvDesc.Texture2DArray.ArraySize = trees->GetDesc().DepthOrArraySize;
+	md3dDevice->CreateShaderResourceView(trees.Get(), &srvDesc, hDescriptor);
 }
 
 void MyGame::LoadTextures()
@@ -556,9 +571,24 @@ void MyGame::LoadTextures()
 		finished.wait();
 	}
 
+	auto trees = std::make_unique<Texture>();
+	trees->Name = "treeArrayTex";
+	trees->FileName = L"Textures/treeArray2.dds";
+	{
+		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
+		upload.Begin();
+		ThrowIfFailed(CreateDDSTextureFromFile(
+			md3dDevice.Get(), upload,
+			trees->FileName.c_str(),
+			trees->Resource.GetAddressOf()));
+		auto finished = upload.End(mCommandQueue.Get());
+		finished.wait();
+	}
+
 	mTextures[grass->Name] = std::move(grass);
 	mTextures[water->Name] = std::move(water);
 	mTextures[fence->Name] = std::move(fence);
+	mTextures[trees->Name] = std::move(trees);
 }
 
 void MyGame::BuildRootSignature()
@@ -600,15 +630,26 @@ void MyGame::BuildShadersAndInputLayout()
 {
 	//mShaders["defaultVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
 	//mShaders["defaultPS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
+
 	mShaders["defaultVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
 	mShaders["defaultPS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
 	mShaders["alphaTestedPS"] = LoadBinary(L"CompiledShaders/alphaTestedPS.cso");
+
+	mShaders["treeSpriteVS"] = LoadBinary(L"CompiledShaders/treeSpriteVS.cso");
+	mShaders["treeSpriteGS"] = LoadBinary(L"CompiledShaders/treeSpriteGS.cso");
+	mShaders["treeSpritePS"] = LoadBinary(L"CompiledShaders/treeSpritePS.cso");
 
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	mTreeSpriteInputLayout =
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
@@ -659,7 +700,7 @@ void MyGame::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
-void MyGame::BuildWavesGeometryBuffers()
+void MyGame::BuildWavesGeometry()
 {
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
@@ -701,6 +742,7 @@ void MyGame::BuildWavesGeometryBuffers()
 
 	geo->IndexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
 	                                          indices.data(), ibByteSize, geo->IndexBufferUploader);
+
 	geo->IndexFormat         = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
@@ -759,31 +801,90 @@ void MyGame::BuildBoxGeometry()
 	mGeometries["boxGeo"] = std::move(geo);
 }
 
+void MyGame::BuildTreeSpriteGeometry()
+{
+	using namespace DirectX;
+	struct TreeSpriteVertex
+	{
+		XMFLOAT3 Pos;
+		XMFLOAT2 Size;
+	};
+
+	constexpr int treeCnt = 16;
+	std::array<TreeSpriteVertex, treeCnt> vertices{};
+	for (auto& vertex : vertices)
+	{
+		const float x = DX::MathHelper::RandF(-45.0f, 45.0f);
+		const float z = DX::MathHelper::RandF(-45.0f, 45.0f);
+		const float y = GetHillsHeight(x, z) + 8.0f;
+
+		vertex.Pos = XMFLOAT3(x, y, z);
+		vertex.Size = XMFLOAT2(20.0f, 20.0f);
+	}
+
+	const std::array<uint16_t, treeCnt> indices =
+	{
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+	};
+
+	constexpr UINT vbByteSize = static_cast<UINT>(vertices.size()) * sizeof(TreeSpriteVertex);
+	constexpr UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "treeSpriteGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, geo->VertexBufferCPU.GetAddressOf()));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, geo->IndexBufferCPU.GetAddressOf()));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride     = sizeof(TreeSpriteVertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat          = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize  = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = static_cast<UINT>(indices.size());
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["points"] = submesh;
+
+	mGeometries[geo->Name] = std::move(geo);
+}
+
 void MyGame::BuildPipelineStateObjects()
 {
 	// PSO for opaque objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc{};
 	opaquePsoDesc.InputLayout.pInputElementDescs = mInputLayout.data();
-	opaquePsoDesc.InputLayout.NumElements        = static_cast<UINT>(mInputLayout.size());
-	opaquePsoDesc.pRootSignature                 = mRootSignature.Get();
+	opaquePsoDesc.InputLayout.NumElements = static_cast<UINT>(mInputLayout.size());
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();
 
-	opaquePsoDesc.VS.pShaderBytecode             = static_cast<BYTE*>(mShaders["defaultVS"]->GetBufferPointer());
-	opaquePsoDesc.VS.BytecodeLength              = mShaders["defaultVS"]->GetBufferSize();
-	opaquePsoDesc.PS.pShaderBytecode             = static_cast<BYTE*>(mShaders["defaultPS"]->GetBufferPointer());
-	opaquePsoDesc.PS.BytecodeLength              = mShaders["defaultPS"]->GetBufferSize();
+	opaquePsoDesc.VS.pShaderBytecode = static_cast<BYTE*>(mShaders["defaultVS"]->GetBufferPointer());
+	opaquePsoDesc.VS.BytecodeLength = mShaders["defaultVS"]->GetBufferSize();
+	opaquePsoDesc.PS.pShaderBytecode = static_cast<BYTE*>(mShaders["defaultPS"]->GetBufferPointer());
+	opaquePsoDesc.PS.BytecodeLength = mShaders["defaultPS"]->GetBufferSize();
 
-	opaquePsoDesc.RasterizerState                = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.BlendState                     = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.DepthStencilState              = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.SampleMask                     = UINT_MAX;
-	opaquePsoDesc.PrimitiveTopologyType          = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	opaquePsoDesc.NumRenderTargets               = 1;
-	opaquePsoDesc.RTVFormats[0]                  = mBackBufferFormat;
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets = 1;
+	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
 
-	opaquePsoDesc.SampleDesc.Count               = mSampleCount;
-	opaquePsoDesc.SampleDesc.Quality             = 0;
+	opaquePsoDesc.SampleDesc.Count = mSampleCount;
+	opaquePsoDesc.SampleDesc.Quality = 0;
 
-	opaquePsoDesc.DSVFormat                      = mDepthStencilFormat;
+	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["opaque"].GetAddressOf())));
@@ -792,15 +893,15 @@ void MyGame::BuildPipelineStateObjects()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC trnPsoDesc = opaquePsoDesc;
 
 	D3D12_RENDER_TARGET_BLEND_DESC trnBlendDesc{};
-	trnBlendDesc.BlendEnable           = true;
-	trnBlendDesc.LogicOpEnable         = false;
-	trnBlendDesc.SrcBlend              = D3D12_BLEND_SRC_ALPHA;
-	trnBlendDesc.DestBlend             = D3D12_BLEND_INV_SRC_ALPHA;
-	trnBlendDesc.BlendOp               = D3D12_BLEND_OP_ADD;
-	trnBlendDesc.SrcBlendAlpha         = D3D12_BLEND_ONE;
-	trnBlendDesc.DestBlendAlpha        = D3D12_BLEND_ZERO;
-	trnBlendDesc.BlendOpAlpha          = D3D12_BLEND_OP_ADD;
-	trnBlendDesc.LogicOp               = D3D12_LOGIC_OP_NOOP;
+	trnBlendDesc.BlendEnable = true;
+	trnBlendDesc.LogicOpEnable = false;
+	trnBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	trnBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	trnBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	trnBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	trnBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	trnBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	trnBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
 	trnBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
 	trnPsoDesc.BlendState.RenderTarget[0] = trnBlendDesc;
@@ -809,11 +910,40 @@ void MyGame::BuildPipelineStateObjects()
 
 	// PSO for Alpha tested objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestPsoDesc = opaquePsoDesc;
-	alphaTestPsoDesc.PS.pShaderBytecode       = static_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer());
-	alphaTestPsoDesc.PS.BytecodeLength        = mShaders["alphaTestedPS"]->GetBufferSize();
+	alphaTestPsoDesc.PS.pShaderBytecode = static_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer());
+	alphaTestPsoDesc.PS.BytecodeLength = mShaders["alphaTestedPS"]->GetBufferSize();
 	alphaTestPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	md3dDevice->CreateGraphicsPipelineState(&alphaTestPsoDesc,
-		IID_PPV_ARGS(mPipelineStateObjects["alphaTested"].GetAddressOf()));
+	alphaTestPsoDesc.BlendState.AlphaToCoverageEnable = true;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["alphaTested"].GetAddressOf())));
+;
+	// PSO for tree sprite.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC treeSpritePsoDesc = opaquePsoDesc;
+	treeSpritePsoDesc.VS =
+	{
+		static_cast<BYTE*>(mShaders["treeSpriteVS"]->GetBufferPointer()),
+		mShaders["treeSpriteVS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.GS =
+	{
+		static_cast<BYTE*>(mShaders["treeSpriteGS"]->GetBufferPointer()),
+		mShaders["treeSpriteGS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.PS =
+	{
+		static_cast<BYTE*>(mShaders["treeSpritePS"]->GetBufferPointer()),
+		mShaders["treeSpritePS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	treeSpritePsoDesc.InputLayout = 
+	{
+		mTreeSpriteInputLayout.data(),
+		static_cast<UINT>(mTreeSpriteInputLayout.size())
+	};
+	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	treeSpritePsoDesc.BlendState.AlphaToCoverageEnable = true;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["treeSprite"].GetAddressOf())));
 }
 
 void MyGame::BuildFrameResources()
@@ -853,16 +983,25 @@ void MyGame::BuildMaterials()
 	water->Roughness           = 0.0f;
 
 	auto wireFence = std::make_unique<Material>();
-	wireFence->Name            = "wireFence";
+	wireFence->Name                = "wireFence";
 	wireFence->MatCbIndex          = 2;
 	wireFence->DiffuseSrvHeapIndex = 2;
 	wireFence->DiffuseAlbedo       = { 1.0f, 1.0f, 1.0f, 1.0f };
 	wireFence->FresnelR0           = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	wireFence->Roughness           = 0.25f;
 
+	auto treeSprite = std::make_unique<Material>();
+	treeSprite->Name			    = "treeSprite";
+	treeSprite->MatCbIndex          = 3;
+	treeSprite->DiffuseSrvHeapIndex = 3;
+	treeSprite->DiffuseAlbedo       = { 1.0f, 1.0f, 1.0f, 1.0f };
+	treeSprite->FresnelR0           = XMFLOAT3(0.01f, 0.01f, 0.01f);
+	treeSprite->Roughness           = 0.125f;
+
 	mMaterials[grass->Name] = std::move(grass);
 	mMaterials[water->Name] = std::move(water);
 	mMaterials[wireFence->Name] = std::move(wireFence);
+	mMaterials[treeSprite->Name] = std::move(treeSprite);
 }
 
 void MyGame::BuildRenderItems()
@@ -909,9 +1048,22 @@ void MyGame::BuildRenderItems()
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(box.get());
 
-	mRenderItems.push_back(std::move(wave));	// waves
-	mRenderItems.push_back(std::move(land));	// hills
-	mRenderItems.push_back(std::move(box));	// box
+	auto treeSprite = std::make_unique<RenderItem>();
+	treeSprite->World = MathHelper::Identity4x4();
+	treeSprite->ObjConstBuffIndex = 3;
+	treeSprite->Material = mMaterials["treeSprite"].get();
+	treeSprite->Geometry = mGeometries["treeSpriteGeo"].get();
+	treeSprite->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+	treeSprite->IndexCount = treeSprite->Geometry->DrawArgs["points"].IndexCount;
+	treeSprite->StartIndexLocation = treeSprite->Geometry->DrawArgs["points"].StartIndexLocation;
+	treeSprite->BaseVertexLocation = treeSprite->Geometry->DrawArgs["points"].BaseVertexLocation;
+
+	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)].push_back(treeSprite.get());
+
+	mRenderItems.push_back(std::move(wave));
+	mRenderItems.push_back(std::move(land));
+	mRenderItems.push_back(std::move(box));	
+	mRenderItems.push_back(std::move(treeSprite));	
 }
 
 void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const

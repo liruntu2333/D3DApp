@@ -1,21 +1,22 @@
 #ifndef NUM_DIR_LIGHTS
-	#define NUM_DIR_LIGHTS 3
+#define NUM_DIR_LIGHTS 3
 #endif
 
 #ifndef NUM_POINT_LIGHTS
-	#define NUM_POINT_LIGHTS 0
+#define NUM_POINT_LIGHTS 0
 #endif
 
 #ifndef NUM_SPOT_LIGHTS
-	#define NUM_SPOT_LIGHTS 0
+#define NUM_SPOT_LIGHTS 0
 #endif
 
-//#define TOON_SHADING
+#define TREE_ARRAY_SIZE 3
+#define ALPHA_TEST
 //#define FOG
 
 #include "lightingUtil.hlsli"
 
-Texture2D gDiffuseMap : register(t0);
+Texture2DArray gTreeMapArray : register(t0);
 
 SamplerState gSamPointWrap        : register(s0);
 SamplerState gSamPointClamp       : register(s1);
@@ -67,15 +68,21 @@ cbuffer cbMaterial : register(b2)
 
 struct VertexIn
 {
-    float3 PosL    : POSITION;
-    float3 NormalL : NORMAL;
-    float2 TexC    : TEXCOORD;
+    float3 PosW : POSITION;
+    float2 SizeW : SIZE;
 };
 
 struct VertexOut
+{
+    float3 CenterW : POSITION;
+    float2 SizeW   : SIZE;
+};
+
+struct GeoOut
 {
     float4 PosH    : SV_POSITION;
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
     float2 TexC    : TEXCOORD;
+    uint PrimId    : SV_PrimitiveID;
 };

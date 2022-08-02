@@ -10,60 +10,63 @@
     <Filter Include="Asset">
       <UniqueIdentifier>{6c32e38c-aa40-4d56-bddb-049ef8141c25}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Core">
+      <UniqueIdentifier>{1b6fe8a1-b331-4fd0-b4c7-4fb584aecd53}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="D3DUtil.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="D3DApp.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="GameTimer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="MyGame.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="MathHelper.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="D3DApp.cpp">
+      <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="GeometryGenerator.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="D3DUtil.cpp">
+      <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="FrameResource.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="GameTimer.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryGenerator.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="MathHelper.cpp">
+      <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Waves.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="D3DUtil.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="D3DApp.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="GameTimer.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="MathHelper.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="UploadBuffer.h">
-      <Filter>Source</Filter>
-    </ClInclude>
     <ClInclude Include="MyGame.h">
       <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="GeometryGenerator.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="D3DApp.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="D3DUtil.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="FrameResource.h">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTimer.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MathHelper.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="Waves.h">
-      <Filter>Source</Filter>
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UploadBuffer.h">
+      <Filter>Source\Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -82,6 +85,15 @@
     <FxCompile Include="Shader\alphaTestedPS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\treeSpriteVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\treeSpritePS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\treeSpriteGS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -91,6 +103,9 @@
       <Filter>Shader</Filter>
     </None>
     <None Include="shader\default.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\treeSprite.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>
