@@ -66,7 +66,7 @@ private:
 	void BuildDescriptorHeaps();
 	void BuildLandGeometry();
 	void BuildWavesGeometry();
-	void BuildBoxGeometry();
+	void BuildSphereGeometry();
 	void BuildTreeSpriteGeometry();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();

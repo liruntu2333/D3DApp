@@ -56,7 +56,7 @@ bool MyGame::Initialize()
 	BuildLandGeometry();
 	BuildWavesGeometry();
 	BuildTreeSpriteGeometry();
-	BuildBoxGeometry();
+	BuildSphereGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -639,6 +639,10 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["treeSpriteGS"] = LoadBinary(L"CompiledShaders/treeSpriteGS.cso");
 	mShaders["treeSpritePS"] = LoadBinary(L"CompiledShaders/treeSpritePS.cso");
 
+	mShaders["sphereVS"] = LoadBinary(L"CompiledShaders/sphereVS.cso");
+	mShaders["sphereGS"] = LoadBinary(L"CompiledShaders/sphereGS.cso");
+	mShaders["spherePS"] = LoadBinary(L"CompiledShaders/spherePS.cso");
+
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -756,25 +760,29 @@ void MyGame::BuildWavesGeometry()
 	mGeometries["waterGeo"] = std::move(geo);
 }
 
-void MyGame::BuildBoxGeometry()
+void MyGame::BuildSphereGeometry()
 {
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
+	using namespace DirectX;
 
-	std::vector<Vertex> vertices(box.Vertices.size());
-	for (size_t i = 0; i < box.Vertices.size(); ++i)
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData sphere = geoGen.CreateGeosphere(8.0f, 0);
+
+	std::vector<Vertex> vertices(sphere.Vertices.size());
+	for (int i = 0; i < sphere.Vertices.size(); ++i)
 	{
-		vertices[i].Pos = box.Vertices[i].Position;
-		vertices[i].Normal = box.Vertices[i].Normal;
-		vertices[i].TexC = box.Vertices[i].TexC;
+		vertices[i].Pos = sphere.Vertices[i].Position;
+		vertices[i].Normal = sphere.Vertices[i].Normal;
+		auto m = XMMatrixAffineTransformation2D(
+			{ 1.f,1.f,1.f }, { 0.5f,0.5f,}, XM_PIDIV4, {});
+		XMStoreFloat2(&vertices[i].TexC, XMVector2Transform(XMLoadFloat2(&sphere.Vertices[i].TexC), m));
 	}
 
-	std::vector<uint16_t> indices = box.GetIndices16();
+	std::vector<uint16_t> indices = sphere.GetIndices16();
 	const UINT vbByteSize = static_cast<UINT>(vertices.size()) * sizeof(Vertex);
 	const UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "boxGeo";
+	geo->Name = "sphereGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, geo->VertexBufferCPU.GetAddressOf()));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -796,9 +804,9 @@ void MyGame::BuildBoxGeometry()
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
-	geo->DrawArgs["box"] = submesh;
+	geo->DrawArgs["sphere"] = submesh;
 
-	mGeometries["boxGeo"] = std::move(geo);
+	mGeometries["sphereGeo"] = std::move(geo);
 }
 
 void MyGame::BuildTreeSpriteGeometry()
@@ -910,8 +918,21 @@ void MyGame::BuildPipelineStateObjects()
 
 	// PSO for Alpha tested objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestPsoDesc = opaquePsoDesc;
-	alphaTestPsoDesc.PS.pShaderBytecode = static_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer());
-	alphaTestPsoDesc.PS.BytecodeLength = mShaders["alphaTestedPS"]->GetBufferSize();
+	alphaTestPsoDesc.VS =
+	{
+		static_cast<BYTE*>(mShaders["sphereVS"]->GetBufferPointer()),
+		mShaders["sphereVS"]->GetBufferSize()
+	};
+	alphaTestPsoDesc.GS =
+	{
+		static_cast<BYTE*>(mShaders["sphereGS"]->GetBufferPointer()),
+		mShaders["sphereGS"]->GetBufferSize()
+	};
+	alphaTestPsoDesc.PS =
+	{
+		static_cast<BYTE*>(mShaders["spherePS"]->GetBufferPointer()),
+		mShaders["spherePS"]->GetBufferSize()
+	};
 	alphaTestPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	alphaTestPsoDesc.BlendState.AlphaToCoverageEnable = true;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestPsoDesc,
@@ -1036,17 +1057,17 @@ void MyGame::BuildRenderItems()
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
 
-	auto box = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&box->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
-	box->ObjConstBuffIndex  = 2;
-	box->Material           = mMaterials["wireFence"].get();
-	box->Geometry           = mGeometries["boxGeo"].get();
-	box->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	box->IndexCount         = box->Geometry->DrawArgs["box"].IndexCount;
-	box->StartIndexLocation = box->Geometry->DrawArgs["box"].StartIndexLocation;
-	box->BaseVertexLocation = box->Geometry->DrawArgs["box"].BaseVertexLocation;
+	auto sphere = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&sphere->World, XMMatrixTranslation(3.0f, 5.0f, -9.0f));
+	sphere->ObjConstBuffIndex  = 2;
+	sphere->Material           = mMaterials["wireFence"].get();
+	sphere->Geometry           = mGeometries["sphereGeo"].get();
+	sphere->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	sphere->IndexCount         = sphere->Geometry->DrawArgs["sphere"].IndexCount;
+	sphere->StartIndexLocation = sphere->Geometry->DrawArgs["sphere"].StartIndexLocation;
+	sphere->BaseVertexLocation = sphere->Geometry->DrawArgs["sphere"].BaseVertexLocation;
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(box.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(sphere.get());
 
 	auto treeSprite = std::make_unique<RenderItem>();
 	treeSprite->World = MathHelper::Identity4x4();
@@ -1062,7 +1083,7 @@ void MyGame::BuildRenderItems()
 
 	mRenderItems.push_back(std::move(wave));
 	mRenderItems.push_back(std::move(land));
-	mRenderItems.push_back(std::move(box));	
+	mRenderItems.push_back(std::move(sphere));	
 	mRenderItems.push_back(std::move(treeSprite));	
 }
 

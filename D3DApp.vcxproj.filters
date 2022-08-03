@@ -13,6 +13,18 @@
     <Filter Include="Source\Core">
       <UniqueIdentifier>{1b6fe8a1-b331-4fd0-b4c7-4fb584aecd53}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\color">
+      <UniqueIdentifier>{9c5b9c1e-118b-45bb-846d-f072043638f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\default">
+      <UniqueIdentifier>{ada24010-440a-46e6-bc21-f58595629cba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\treeSprite">
+      <UniqueIdentifier>{22e1cec0-38ef-4f3d-be54-ca47add5a712}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\sphere">
+      <UniqueIdentifier>{b672122a-94a4-4ad2-b81e-3112fc52756d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -71,42 +83,54 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\colorVS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\color</Filter>
     </FxCompile>
     <FxCompile Include="shader\colorPS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultVS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="shader\defaultPS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\color</Filter>
     </FxCompile>
     <FxCompile Include="Shader\alphaTestedPS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\default</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultPS.hlsl">
+      <Filter>Shader\default</Filter>
+    </FxCompile>
+    <FxCompile Include="shader\defaultVS.hlsl">
+      <Filter>Shader\default</Filter>
     </FxCompile>
     <FxCompile Include="Shader\treeSpriteVS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\treeSpritePS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\treeSprite</Filter>
     </FxCompile>
     <FxCompile Include="Shader\treeSpriteGS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\treeSprite</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\treeSpritePS.hlsl">
+      <Filter>Shader\treeSprite</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\sphereGS.hlsl">
+      <Filter>Shader\sphere</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\sphereVS.hlsl">
+      <Filter>Shader\sphere</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\spherePS.hlsl">
+      <Filter>Shader\sphere</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="shader\lightingUtil.hlsli">
-      <Filter>Shader</Filter>
+      <Filter>Shader\color</Filter>
     </None>
     <None Include="shader\default.hlsli">
-      <Filter>Shader</Filter>
+      <Filter>Shader\default</Filter>
+    </None>
+    <None Include="shader\lightingUtil.hlsli">
+      <Filter>Shader\default</Filter>
     </None>
     <None Include="Shader\treeSprite.hlsli">
-      <Filter>Shader</Filter>
+      <Filter>Shader\treeSprite</Filter>
+    </None>
+    <None Include="Shader\sphere.hlsli">
+      <Filter>Shader\sphere</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
