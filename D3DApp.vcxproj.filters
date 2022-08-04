@@ -25,6 +25,9 @@
     <Filter Include="Shader\sphere">
       <UniqueIdentifier>{b672122a-94a4-4ad2-b81e-3112fc52756d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\visualNorm">
+      <UniqueIdentifier>{64e9a85e-04b2-4045-969f-35f9b771a10a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -115,6 +118,15 @@
     <FxCompile Include="Shader\spherePS.hlsl">
       <Filter>Shader\sphere</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\visNormVS.hlsl">
+      <Filter>Shader\visualNorm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\visNormGS.hlsl">
+      <Filter>Shader\visualNorm</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\visNormPS.hlsl">
+      <Filter>Shader\visualNorm</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -131,6 +143,9 @@
     </None>
     <None Include="Shader\sphere.hlsli">
       <Filter>Shader\sphere</Filter>
+    </None>
+    <None Include="Shader\visNorm.hlsli">
+      <Filter>Shader\visualNorm</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

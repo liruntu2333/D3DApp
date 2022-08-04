@@ -76,8 +76,7 @@ namespace DX
 			DirectX::XMMATRIX A = M;
 			A.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
-			DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(A);
-			return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&det, A));
+			return XMMatrixTranspose(XMMatrixInverse(nullptr, A));
 		}
 
 		static DirectX::XMFLOAT4X4 XM_CALLCONV Identity4x4()

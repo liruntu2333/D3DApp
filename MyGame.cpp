@@ -208,16 +208,21 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
 
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
+	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
 
 	mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
+	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
 
 	mCommandList->SetPipelineState(mPipelineStateObjects["treeSprite"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)]);
+	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)]);
 
 	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
+	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
+
+#ifdef _DEBUG
+	mCommandList->SetPipelineState(mPipelineStateObjects["visNorm"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)]);
+#endif
 
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
@@ -348,10 +353,12 @@ void MyGame::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
 		{
 			const XMMATRIX world = XMLoadFloat4x4(&ri->World);
 			const XMMATRIX texTransform = XMLoadFloat4x4(&ri->TexTransform);
+			const XMMATRIX worldInvT = MathHelper::InverseTranspose(world);
 
 			ObjectConstants objConst;
-			XMStoreFloat4x4(&objConst.world, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConst.World, XMMatrixTranspose(world));
 			XMStoreFloat4x4(&objConst.TexTransform, XMMatrixTranspose(texTransform));
+			XMStoreFloat4x4(&objConst.WorldInvTranspose, XMMatrixTranspose(worldInvT));
 
 			currObjCb->CopyData(ri->ObjConstBuffIndex, objConst);
 
@@ -392,13 +399,9 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	const XMMATRIX proj = XMLoadFloat4x4(&mProj);
 	const XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
-	XMVECTOR detView = XMMatrixDeterminant(view);
-	XMVECTOR detProj = XMMatrixDeterminant(proj);
-	XMVECTOR detViewProj = XMMatrixDeterminant(viewProj);
-
-	const XMMATRIX invView = XMMatrixInverse(&detView, view);
-	const XMMATRIX invProj = XMMatrixInverse(&detProj, proj);
-	const XMMATRIX invViewProj = XMMatrixInverse(&detViewProj, viewProj);
+	const XMMATRIX invView = XMMatrixInverse(nullptr, view);
+	const XMMATRIX invProj = XMMatrixInverse(nullptr, proj);
+	const XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
 
 	XMStoreFloat4x4(&mMainPassConstBuff.View, XMMatrixTranspose(view));
 	XMStoreFloat4x4(&mMainPassConstBuff.InvView, XMMatrixTranspose(invView));
@@ -643,17 +646,21 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["sphereGS"] = LoadBinary(L"CompiledShaders/sphereGS.cso");
 	mShaders["spherePS"] = LoadBinary(L"CompiledShaders/spherePS.cso");
 
+	mShaders["visNormVS"] = LoadBinary(L"CompiledShaders/visNormVS.cso");
+	mShaders["visNormGS"] = LoadBinary(L"CompiledShaders/visNormGS.cso");
+	mShaders["visNormPS"] = LoadBinary(L"CompiledShaders/visNormPS.cso");
+
 	mInputLayout =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Pos),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"NORMAL",	 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(Vertex, TexC),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 
 	mTreeSpriteInputLayout =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"SIZE",     0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
@@ -685,9 +692,9 @@ void MyGame::BuildLandGeometry()
 	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
 	geo->VertexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
-	                                           vertices.data(), vbByteSize, geo->VertexBufferUploader);
+		vertices.data(), vbByteSize, geo->VertexBufferUploader);
 	geo->IndexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
-	                                          indices.data(), ibByteSize, geo->IndexBufferUploader);
+		indices.data(), ibByteSize, geo->IndexBufferUploader);
 
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
@@ -772,8 +779,7 @@ void MyGame::BuildSphereGeometry()
 	{
 		vertices[i].Pos = sphere.Vertices[i].Position;
 		vertices[i].Normal = sphere.Vertices[i].Normal;
-		auto m = XMMatrixAffineTransformation2D(
-			{ 1.f,1.f,1.f }, { 0.5f,0.5f,}, XM_PIDIV4, {});
+		auto m = XMMatrixAffineTransformation2D({ 1.f,1.f,1.f }, { 0.5f,0.5f,}, XM_PIDIV4, {});
 		XMStoreFloat2(&vertices[i].TexC, XMVector2Transform(XMLoadFloat2(&sphere.Vertices[i].TexC), m));
 	}
 
@@ -822,8 +828,8 @@ void MyGame::BuildTreeSpriteGeometry()
 	std::array<TreeSpriteVertex, treeCnt> vertices{};
 	for (auto& vertex : vertices)
 	{
-		const float x = DX::MathHelper::RandF(-45.0f, 45.0f);
-		const float z = DX::MathHelper::RandF(-45.0f, 45.0f);
+		const float x = MathHelper::RandF(-45.0f, 45.0f);
+		const float z = MathHelper::RandF(-45.0f, 45.0f);
 		const float y = GetHillsHeight(x, z) + 8.0f;
 
 		vertex.Pos = XMFLOAT3(x, y, z);
@@ -873,29 +879,48 @@ void MyGame::BuildPipelineStateObjects()
 	// PSO for opaque objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc{};
 	opaquePsoDesc.InputLayout.pInputElementDescs = mInputLayout.data();
-	opaquePsoDesc.InputLayout.NumElements = static_cast<UINT>(mInputLayout.size());
-	opaquePsoDesc.pRootSignature = mRootSignature.Get();
+	opaquePsoDesc.InputLayout.NumElements        = static_cast<UINT>(mInputLayout.size());
+	opaquePsoDesc.pRootSignature                 = mRootSignature.Get();
 
-	opaquePsoDesc.VS.pShaderBytecode = static_cast<BYTE*>(mShaders["defaultVS"]->GetBufferPointer());
-	opaquePsoDesc.VS.BytecodeLength = mShaders["defaultVS"]->GetBufferSize();
-	opaquePsoDesc.PS.pShaderBytecode = static_cast<BYTE*>(mShaders["defaultPS"]->GetBufferPointer());
-	opaquePsoDesc.PS.BytecodeLength = mShaders["defaultPS"]->GetBufferSize();
+	opaquePsoDesc.VS.pShaderBytecode             = mShaders["defaultVS"]->GetBufferPointer();
+	opaquePsoDesc.VS.BytecodeLength              = mShaders["defaultVS"]->GetBufferSize();
+	opaquePsoDesc.PS.pShaderBytecode             = mShaders["defaultPS"]->GetBufferPointer();
+	opaquePsoDesc.PS.BytecodeLength              = mShaders["defaultPS"]->GetBufferSize();
 
-	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.SampleMask = UINT_MAX;
-	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+	opaquePsoDesc.RasterizerState                = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.BlendState                     = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState              = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask                     = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType          = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets               = 1;
+	opaquePsoDesc.RTVFormats[0]                  = mBackBufferFormat;
 
-	opaquePsoDesc.SampleDesc.Count = mSampleCount;
-	opaquePsoDesc.SampleDesc.Quality = 0;
+	opaquePsoDesc.SampleDesc.Count               = mSampleCount;
+	opaquePsoDesc.SampleDesc.Quality             = 0;
 
-	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	opaquePsoDesc.DSVFormat                      = mDepthStencilFormat;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["opaque"].GetAddressOf())));
+
+#ifdef _DEBUG
+	// PSO for visualizing normals
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC visNormPsoDesc = opaquePsoDesc;
+
+	visNormPsoDesc.VS.pShaderBytecode = mShaders["visNormVS"]->GetBufferPointer();
+	visNormPsoDesc.VS.BytecodeLength  = mShaders["visNormVS"]->GetBufferSize();
+	visNormPsoDesc.GS.pShaderBytecode = mShaders["visNormGS"]->GetBufferPointer();
+	visNormPsoDesc.GS.BytecodeLength  = mShaders["visNormGS"]->GetBufferSize();
+	visNormPsoDesc.PS.pShaderBytecode = mShaders["visNormPS"]->GetBufferPointer();
+	visNormPsoDesc.PS.BytecodeLength  = mShaders["visNormPS"]->GetBufferSize();
+
+	visNormPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	visNormPsoDesc.RasterizerState.MultisampleEnable     = true;
+	visNormPsoDesc.RasterizerState.AntialiasedLineEnable = true;
+
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&visNormPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["visNorm"].GetAddressOf())));
+#endif
 
 	// PSO for transparent objects.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC trnPsoDesc = opaquePsoDesc;
@@ -920,17 +945,17 @@ void MyGame::BuildPipelineStateObjects()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestPsoDesc = opaquePsoDesc;
 	alphaTestPsoDesc.VS =
 	{
-		static_cast<BYTE*>(mShaders["sphereVS"]->GetBufferPointer()),
+		mShaders["sphereVS"]->GetBufferPointer(),
 		mShaders["sphereVS"]->GetBufferSize()
 	};
 	alphaTestPsoDesc.GS =
 	{
-		static_cast<BYTE*>(mShaders["sphereGS"]->GetBufferPointer()),
+		mShaders["sphereGS"]->GetBufferPointer(),
 		mShaders["sphereGS"]->GetBufferSize()
 	};
 	alphaTestPsoDesc.PS =
 	{
-		static_cast<BYTE*>(mShaders["spherePS"]->GetBufferPointer()),
+		mShaders["spherePS"]->GetBufferPointer(),
 		mShaders["spherePS"]->GetBufferSize()
 	};
 	alphaTestPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -940,27 +965,27 @@ void MyGame::BuildPipelineStateObjects()
 ;
 	// PSO for tree sprite.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC treeSpritePsoDesc = opaquePsoDesc;
-	treeSpritePsoDesc.VS =
-	{
-		static_cast<BYTE*>(mShaders["treeSpriteVS"]->GetBufferPointer()),
-		mShaders["treeSpriteVS"]->GetBufferSize()
-	};
-	treeSpritePsoDesc.GS =
-	{
-		static_cast<BYTE*>(mShaders["treeSpriteGS"]->GetBufferPointer()),
-		mShaders["treeSpriteGS"]->GetBufferSize()
-	};
-	treeSpritePsoDesc.PS =
-	{
-		static_cast<BYTE*>(mShaders["treeSpritePS"]->GetBufferPointer()),
-		mShaders["treeSpritePS"]->GetBufferSize()
-	};
-	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-	treeSpritePsoDesc.InputLayout = 
+	treeSpritePsoDesc.InputLayout =
 	{
 		mTreeSpriteInputLayout.data(),
 		static_cast<UINT>(mTreeSpriteInputLayout.size())
 	};
+	treeSpritePsoDesc.VS =
+	{
+		mShaders["treeSpriteVS"]->GetBufferPointer(),
+		mShaders["treeSpriteVS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.GS =
+	{
+		mShaders["treeSpriteGS"]->GetBufferPointer(),
+		mShaders["treeSpriteGS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.PS =
+	{
+		mShaders["treeSpritePS"]->GetBufferPointer(),
+		mShaders["treeSpritePS"]->GetBufferSize()
+	};
+	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	treeSpritePsoDesc.BlendState.AlphaToCoverageEnable = true;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc,
@@ -1035,7 +1060,7 @@ void MyGame::BuildRenderItems()
 	wave->ObjConstBuffIndex  = 0;
 	wave->Material           = mMaterials["water"].get();
 	wave->Geometry           = mGeometries["waterGeo"].get();
-	wave->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	wave->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	wave->IndexCount         = wave->Geometry->DrawArgs["grid"].IndexCount;
 	wave->StartIndexLocation = wave->Geometry->DrawArgs["grid"].StartIndexLocation;
 	wave->BaseVertexLocation = wave->Geometry->DrawArgs["grid"].BaseVertexLocation;
@@ -1050,7 +1075,7 @@ void MyGame::BuildRenderItems()
 	land->ObjConstBuffIndex  = 1;
 	land->Material           = mMaterials["grass"].get();
 	land->Geometry           = mGeometries["landGeo"].get();
-	land->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	land->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	land->IndexCount         = land->Geometry->DrawArgs["grid"].IndexCount;
 	land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
 	land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
@@ -1062,7 +1087,7 @@ void MyGame::BuildRenderItems()
 	sphere->ObjConstBuffIndex  = 2;
 	sphere->Material           = mMaterials["wireFence"].get();
 	sphere->Geometry           = mGeometries["sphereGeo"].get();
-	sphere->PrimitiveType      = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	sphere->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	sphere->IndexCount         = sphere->Geometry->DrawArgs["sphere"].IndexCount;
 	sphere->StartIndexLocation = sphere->Geometry->DrawArgs["sphere"].StartIndexLocation;
 	sphere->BaseVertexLocation = sphere->Geometry->DrawArgs["sphere"].BaseVertexLocation;
@@ -1070,16 +1095,33 @@ void MyGame::BuildRenderItems()
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(sphere.get());
 
 	auto treeSprite = std::make_unique<RenderItem>();
-	treeSprite->World = MathHelper::Identity4x4();
-	treeSprite->ObjConstBuffIndex = 3;
-	treeSprite->Material = mMaterials["treeSprite"].get();
-	treeSprite->Geometry = mGeometries["treeSpriteGeo"].get();
-	treeSprite->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
-	treeSprite->IndexCount = treeSprite->Geometry->DrawArgs["points"].IndexCount;
+	treeSprite->World              = MathHelper::Identity4x4();
+	treeSprite->ObjConstBuffIndex  = 3;
+	treeSprite->Material           = mMaterials["treeSprite"].get();
+	treeSprite->Geometry           = mGeometries["treeSpriteGeo"].get();
+	treeSprite->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	treeSprite->IndexCount         = treeSprite->Geometry->DrawArgs["points"].IndexCount;
 	treeSprite->StartIndexLocation = treeSprite->Geometry->DrawArgs["points"].StartIndexLocation;
 	treeSprite->BaseVertexLocation = treeSprite->Geometry->DrawArgs["points"].BaseVertexLocation;
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)].push_back(treeSprite.get());
+
+#ifdef _DEBUG
+	auto waveNorm = std::make_unique<RenderItem>(*wave);
+	waveNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(waveNorm.get());
+	auto landNorm = std::make_unique<RenderItem>(*land);
+	landNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(landNorm.get());
+	auto sphereNorm = std::make_unique<RenderItem>(*sphere);
+	sphereNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(sphereNorm.get());
+
+	mRenderItems.push_back(std::move(waveNorm));
+	mRenderItems.push_back(std::move(landNorm));
+	mRenderItems.push_back(std::move(sphereNorm));
+
+#endif
 
 	mRenderItems.push_back(std::move(wave));
 	mRenderItems.push_back(std::move(land));
@@ -1087,7 +1129,7 @@ void MyGame::BuildRenderItems()
 	mRenderItems.push_back(std::move(treeSprite));	
 }
 
-void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
+void MyGame::DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
 {
 	UINT objCbByteSize = CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT matCbByteSize = CalcConstantBufferByteSize(sizeof(MaterialConstants));
@@ -1116,6 +1158,37 @@ void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 
 		cmdList->DrawIndexedInstanced(item->IndexCount, 1, 
 			item->StartIndexLocation, item->BaseVertexLocation, 0);
+	}
+}
+
+void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
+{
+	UINT objCbByteSize = CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	UINT matCbByteSize = CalcConstantBufferByteSize(sizeof(MaterialConstants));
+	auto objectCb = mCurrFrameResource->ObjConstBuff->Resource();
+	auto matCb = mCurrFrameResource->MatConstBuff->Resource();
+
+	for (const auto& item : renderItems)
+	{
+		const D3D12_VERTEX_BUFFER_VIEW& vbv = item->Geometry->VertexBufferView();
+		UINT vCnt = vbv.SizeInBytes / vbv.StrideInBytes;
+		cmdList->IASetVertexBuffers(0, 1, &vbv);
+		cmdList->IASetIndexBuffer(nullptr);
+		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		tex.Offset(item->Material->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();
+		objCbvAdr += objCbByteSize * item->ObjConstBuffIndex;
+		D3D12_GPU_VIRTUAL_ADDRESS matCbvAdr = matCb->GetGPUVirtualAddress();
+		matCbvAdr += matCbByteSize * item->Material->MatCbIndex;
+
+		cmdList->SetGraphicsRootDescriptorTable(0, tex);
+		cmdList->SetGraphicsRootConstantBufferView(1, objCbvAdr);
+		cmdList->SetGraphicsRootConstantBufferView(3, matCbvAdr);
+
+		cmdList->DrawInstanced(vCnt, 1, 0, 0);
 	}
 }
 

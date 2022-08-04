@@ -28,6 +28,9 @@ enum class RenderLayer : int
 	Transparent,
 	AlphaTested,
 	AlphaTestedTreeSprite,
+#ifdef _DEBUG
+	VisualNorm,
+#endif
 	Count
 };
 
@@ -72,7 +75,9 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void BuildRenderItems();
-	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, 
+	void DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, 
+		const std::vector<RenderItem*>& renderItems) const;
+	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList,
 		const std::vector<RenderItem*>& renderItems) const;
 
 	static std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
