@@ -49,8 +49,12 @@ bool MyGame::Initialize()
 
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+	mBlurFilter = std::make_unique<BlurFilter>(md3dDevice.Get(), mClientWidth, mClientHeight, DXGI_FORMAT_R8G8B8A8_UNORM);
+
 	LoadTextures();
 	BuildRootSignature();
+	BuildPostProcessRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildLandGeometry();
@@ -78,69 +82,74 @@ void MyGame::OnResize()
 
 	D3DApp::OnResize();
 
-	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+	{
+		CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
-	// Create an MSAA render target.
-	D3D12_RESOURCE_DESC msaaRTDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-		mBackBufferFormat,
-		mClientWidth, mClientHeight,
-		1, 1, mSampleCount);
-	msaaRTDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		// Create an MSAA render target.
+		D3D12_RESOURCE_DESC msaaRTDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+			mBackBufferFormat,
+			mClientWidth, mClientHeight,
+			1, 1, mSampleCount);
+		msaaRTDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	D3D12_CLEAR_VALUE rtClearValue{};
-	rtClearValue.Format = mBackBufferFormat;
-	memcpy(rtClearValue.Color, gRenderTargetCleanValue, sizeof(float) * 4);
+		D3D12_CLEAR_VALUE rtClearValue{};
+		rtClearValue.Format = mBackBufferFormat;
+		memcpy(rtClearValue.Color, gRenderTargetCleanValue, sizeof(float) * 4);
 
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&heapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&msaaRTDesc,
-		D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
-		&rtClearValue,
-		IID_PPV_ARGS(mMsaaRenderTarget.GetAddressOf())));
+		ThrowIfFailed(md3dDevice->CreateCommittedResource(
+			&heapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&msaaRTDesc,
+			D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+			&rtClearValue,
+			IID_PPV_ARGS(mMsaaRenderTarget.GetAddressOf())));
 
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
-	rtvDesc.Format = mBackBufferFormat;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
+		rtvDesc.Format = mBackBufferFormat;
+		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
 
-	md3dDevice->CreateRenderTargetView(mMsaaRenderTarget.Get(), &rtvDesc,
-		mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
+		md3dDevice->CreateRenderTargetView(mMsaaRenderTarget.Get(), &rtvDesc,
+			mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
 
-	mMsaaRenderTarget->SetName(L"MSAA Render Target");
+		mMsaaRenderTarget->SetName(L"MSAA Render Target");
 
-	// Create an MSAA depth stencil view.
-	D3D12_RESOURCE_DESC msaaDSDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-		mDepthStencilFormat,
-		mClientWidth, mClientHeight,
-		1, 1, mSampleCount);
-	msaaDSDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		// Create an MSAA depth stencil view.
+		D3D12_RESOURCE_DESC msaaDSDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+			mDepthStencilFormat,
+			mClientWidth, mClientHeight,
+			1, 1, mSampleCount);
+		msaaDSDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-	D3D12_CLEAR_VALUE dsClearValue{};
-	dsClearValue.Format = mDepthStencilFormat;
-	dsClearValue.DepthStencil.Depth = 1.0f;
-	dsClearValue.DepthStencil.Stencil = 0;
+		D3D12_CLEAR_VALUE dsClearValue{};
+		dsClearValue.Format = mDepthStencilFormat;
+		dsClearValue.DepthStencil.Depth = 1.0f;
+		dsClearValue.DepthStencil.Stencil = 0;
 
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&heapProperties,
-		D3D12_HEAP_FLAG_NONE,
-		&msaaDSDesc,
-		D3D12_RESOURCE_STATE_DEPTH_WRITE,
-		&dsClearValue,
-		IID_PPV_ARGS(mMsaaDepthStencil.GetAddressOf())));
+		ThrowIfFailed(md3dDevice->CreateCommittedResource(
+			&heapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&msaaDSDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&dsClearValue,
+			IID_PPV_ARGS(mMsaaDepthStencil.GetAddressOf())));
 
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
-	dsvDesc.Format = mDepthStencilFormat;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+		dsvDesc.Format = mDepthStencilFormat;
+		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
 
-	md3dDevice->CreateDepthStencilView(mMsaaDepthStencil.Get(),
-		&dsvDesc, mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
+		md3dDevice->CreateDepthStencilView(mMsaaDepthStencil.Get(),
+			&dsvDesc, mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
 
-	mMsaaDepthStencil->SetName(L"MSAA Depth Stencil");
+		mMsaaDepthStencil->SetName(L"MSAA Depth Stencil");
+	}
 
 	const XMMATRIX proj = XMMatrixPerspectiveFovLH(
 		0.25f * MathHelper::Pi, AspectRatio(),
 		1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, proj);
+
+	assert(mBlurFilter != nullptr && "Blur Filter is nullptr.");
+	mBlurFilter->OnResize(mClientWidth, mClientHeight);
 }
 
 void MyGame::Update(const GameTimer& gameTimer)
@@ -154,7 +163,7 @@ void MyGame::Update(const GameTimer& gameTimer)
 	if (mCurrFrameResource->Fence != 0 &&
 		mFence->GetCompletedValue() < mCurrFrameResource->Fence)
 	{
-		if (HANDLE handle = 
+		if (const HANDLE handle = 
 			CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS))
 		{
 			ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, handle));
@@ -202,7 +211,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 	// Changes the currently bound descriptor heaps that are associated with a command list.
-	ID3D12DescriptorHeap* heaps[] = { mSrvDescriptorHeap.Get() };
+	ID3D12DescriptorHeap* heaps[] = { mCbvSrvUavDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(heaps), heaps);
 
 	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
@@ -219,7 +228,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
 	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
 
-#ifdef _DEBUG
+#ifdef VISUALIZE_NORMAL
 	mCommandList->SetPipelineState(mPipelineStateObjects["visNorm"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)]);
 #endif
@@ -238,11 +247,14 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->ResolveSubresource(CurrentBackBuffer(), 0,
 		mMsaaRenderTarget.Get(), 0, mBackBufferFormat);
 
-	{
-		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT);
-		mCommandList->ResourceBarrier(1, &barrier);
-	}
+	// Blur Post Effect pass
+	mBlurFilter->Execute(
+		mCommandList.Get(), 
+		mPostProcessRootSignature.Get(),
+		mPipelineStateObjects["horzBlur"].Get(), 
+		mPipelineStateObjects["vertBlur"].Get(),
+		CurrentBackBuffer(), 
+		5);
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -472,61 +484,76 @@ void MyGame::UpdateWaves(const GameTimer& gameTimer) const
 void MyGame::BuildDescriptorHeaps()
 {
 	// Create descriptor heaps for MSAA render target views and depth stencil views.
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-	rtvHeapDesc.NumDescriptors = 1;
-	rtvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+		rtvHeapDesc.NumDescriptors = 1;
+		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc,
-		IID_PPV_ARGS(mMsaaRTVDescHeap.GetAddressOf())));
+		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc,
+			IID_PPV_ARGS(mMsaaRTVDescHeap.GetAddressOf())));
 
-	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
-	dsvHeapDesc.NumDescriptors = 1;
-	dsvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
+		dsvHeapDesc.NumDescriptors = 1;
+		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc,
-		IID_PPV_ARGS(mMsaaDSVDescHeap.GetAddressOf())));
+		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc,
+			IID_PPV_ARGS(mMsaaDSVDescHeap.GetAddressOf())));
+	}
 
-	// Create descriptor heap of Shader Resource Views.
-	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
-	srvHeapDesc.NumDescriptors = static_cast<UINT>(mTextures.size());
-	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc,
-		IID_PPV_ARGS(mSrvDescriptorHeap.GetAddressOf())));
+	// Create descriptor heap for CBVs, SRVs and UAVs.
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
+	heapDesc.NumDescriptors = static_cast<UINT>(mTextures.size() + BlurFilter::DESCRIPTOR_COUNT);
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc,
+		IID_PPV_ARGS(mCbvSrvUavDescriptorHeap.GetAddressOf())));
 
-	// Fill actual SRVs into the heap.
-	auto grass = mTextures["grassTex"]->Resource;
-	auto water = mTextures["waterTex"]->Resource;
-	auto fence = mTextures["fenceTex"]->Resource;
-	auto trees = mTextures["treeArrayTex"]->Resource;
+	{
+		// Fill actual SRVs into the heap.
+		auto grass = mTextures["grassTex"]->Resource;
+		auto water = mTextures["waterTex"]->Resource;
+		auto fence = mTextures["fenceTex"]->Resource;
+		auto trees = mTextures["treeArrayTex"]->Resource;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = grass->GetDesc().Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	// Set to -1 to indicate all the mipmap levels from MostDetailedMip on down to least detailed.
-	srvDesc.Texture2D.MipLevels = -1;
-	md3dDevice->CreateShaderResourceView(grass.Get(), &srvDesc, hDescriptor);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-	srvDesc.Format = water->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(water.Get(), &srvDesc, hDescriptor);
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = grass->GetDesc().Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		// Set to -1 to indicate all the mipmap levels from MostDetailedMip on down to least detailed.
+		srvDesc.Texture2D.MipLevels = -1;
+		md3dDevice->CreateShaderResourceView(grass.Get(), &srvDesc, hDescriptor);
 
-	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-	srvDesc.Format = fence->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(fence.Get(), &srvDesc, hDescriptor);
+		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+		srvDesc.Format = water->GetDesc().Format;
+		md3dDevice->CreateShaderResourceView(water.Get(), &srvDesc, hDescriptor);
 
-	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-	srvDesc.Format = trees->GetDesc().Format;
-	srvDesc.Texture2DArray.MostDetailedMip = 0;
-	srvDesc.Texture2DArray.MipLevels = -1;
-	srvDesc.Texture2DArray.FirstArraySlice = 0;
-	srvDesc.Texture2DArray.ArraySize = trees->GetDesc().DepthOrArraySize;
-	md3dDevice->CreateShaderResourceView(trees.Get(), &srvDesc, hDescriptor);
+		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+		srvDesc.Format = fence->GetDesc().Format;
+		md3dDevice->CreateShaderResourceView(fence.Get(), &srvDesc, hDescriptor);
+
+		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+		srvDesc.Format = trees->GetDesc().Format;
+		srvDesc.Texture2DArray.MostDetailedMip = 0;
+		srvDesc.Texture2DArray.MipLevels = -1;
+		srvDesc.Texture2DArray.FirstArraySlice = 0;
+		srvDesc.Texture2DArray.ArraySize = trees->GetDesc().DepthOrArraySize;
+		md3dDevice->CreateShaderResourceView(trees.Get(), &srvDesc, hDescriptor);
+	}
+
+	// Create descriptor heaps for BlurFilter resources.
+	{
+		mBlurFilter->BuildDescriptors(
+			CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+				4, mCbvSrvUavDescriptorSize),
+			CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+				4, mCbvSrvUavDescriptorSize),
+			mCbvSrvUavDescriptorSize
+		);
+	}
 }
 
 void MyGame::LoadTextures()
@@ -629,6 +656,38 @@ void MyGame::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
+void MyGame::BuildPostProcessRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE srvTbl, uavTbl;
+	srvTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+	uavTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParams[3];
+	slotRootParams[0].InitAsConstants(12, 0);
+	slotRootParams[1].InitAsDescriptorTable(1, &srvTbl);
+	slotRootParams[2].InitAsDescriptorTable(1, &uavTbl);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParams, 0, nullptr, 
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+	const HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+}
+
 void MyGame::BuildShadersAndInputLayout()
 {
 	//mShaders["defaultVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
@@ -646,9 +705,16 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["sphereGS"] = LoadBinary(L"CompiledShaders/sphereGS.cso");
 	mShaders["spherePS"] = LoadBinary(L"CompiledShaders/spherePS.cso");
 
+#ifdef VISUALIZE_NORMAL
+
 	mShaders["visNormVS"] = LoadBinary(L"CompiledShaders/visNormVS.cso");
 	mShaders["visNormGS"] = LoadBinary(L"CompiledShaders/visNormGS.cso");
 	mShaders["visNormPS"] = LoadBinary(L"CompiledShaders/visNormPS.cso");
+
+#endif
+
+	mShaders["horzBlurCS"] = LoadBinary(L"CompiledShaders/horzBlurCS.cso");
+	mShaders["vertBlurCS"] = LoadBinary(L"CompiledShaders/vertBlurCS.cso");
 
 	mInputLayout =
 	{
@@ -713,8 +779,6 @@ void MyGame::BuildLandGeometry()
 
 void MyGame::BuildWavesGeometry()
 {
-	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
-
 	std::vector<uint16_t> indices(3 * mWaves->TriangleCount());
 	assert(mWaves->VertexCount() < 0xffff);
 
@@ -903,7 +967,7 @@ void MyGame::BuildPipelineStateObjects()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["opaque"].GetAddressOf())));
 
-#ifdef _DEBUG
+#ifdef VISUALIZE_NORMAL
 	// PSO for visualizing normals
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC visNormPsoDesc = opaquePsoDesc;
 
@@ -990,6 +1054,26 @@ void MyGame::BuildPipelineStateObjects()
 	treeSpritePsoDesc.BlendState.AlphaToCoverageEnable = true;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["treeSprite"].GetAddressOf())));
+
+	// PSO for horizontal blur
+	D3D12_COMPUTE_PIPELINE_STATE_DESC horzBlurPso{};
+	horzBlurPso.pRootSignature = mPostProcessRootSignature.Get();
+	horzBlurPso.CS.pShaderBytecode = mShaders["horzBlurCS"]->GetBufferPointer();
+	horzBlurPso.CS.BytecodeLength = mShaders["horzBlurCS"]->GetBufferSize();
+	horzBlurPso.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&horzBlurPso,
+		IID_PPV_ARGS(&mPipelineStateObjects["horzBlur"])));
+
+	// PSO for vertical blur
+	D3D12_COMPUTE_PIPELINE_STATE_DESC vertBlurPso{};
+	vertBlurPso.pRootSignature = mPostProcessRootSignature.Get();
+	vertBlurPso.CS.pShaderBytecode = mShaders["vertBlurCS"]->GetBufferPointer();
+	vertBlurPso.CS.BytecodeLength = mShaders["vertBlurCS"]->GetBufferSize();
+	vertBlurPso.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&vertBlurPso,
+		IID_PPV_ARGS(&mPipelineStateObjects["vertBlur"])));
 }
 
 void MyGame::BuildFrameResources()
@@ -1106,7 +1190,8 @@ void MyGame::BuildRenderItems()
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)].push_back(treeSprite.get());
 
-#ifdef _DEBUG
+#ifdef VISUALIZE_NORMAL
+
 	auto waveNorm = std::make_unique<RenderItem>(*wave);
 	waveNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
 	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(waveNorm.get());
@@ -1144,7 +1229,7 @@ void MyGame::DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, const st
 		cmdList->IASetIndexBuffer(&ibv);
 		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(item->Material->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();
@@ -1176,7 +1261,7 @@ void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(nullptr);
 		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(item->Material->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();

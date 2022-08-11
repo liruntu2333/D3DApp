@@ -28,6 +28,9 @@
     <Filter Include="Shader\visualNorm">
       <UniqueIdentifier>{64e9a85e-04b2-4045-969f-35f9b771a10a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\blur">
+      <UniqueIdentifier>{ad0e128d-f576-4be9-beef-47015275bd04}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -52,6 +55,9 @@
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Waves.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="BlurFilter.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -81,6 +87,9 @@
       <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="UploadBuffer.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="BlurFilter.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
   </ItemGroup>
@@ -127,6 +136,12 @@
     <FxCompile Include="Shader\visNormPS.hlsl">
       <Filter>Shader\visualNorm</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\horzBlurCS.hlsl">
+      <Filter>Shader\blur</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\vertBlurCS.hlsl">
+      <Filter>Shader\blur</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -146,6 +161,9 @@
     </None>
     <None Include="Shader\visNorm.hlsli">
       <Filter>Shader\visualNorm</Filter>
+    </None>
+    <None Include="Shader\blur.hlsli">
+      <Filter>Shader\blur</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

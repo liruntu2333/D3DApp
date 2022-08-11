@@ -5,6 +5,11 @@
 #include "UploadBuffer.h"
 #include "FrameResource.h"
 #include  "Waves.h"
+#include "BlurFilter.h"
+
+#ifdef _DEBUG
+	//#define VISUALIZE_NORMAL
+#endif
 
 struct RenderItem
 {
@@ -28,7 +33,7 @@ enum class RenderLayer : int
 	Transparent,
 	AlphaTested,
 	AlphaTestedTreeSprite,
-#ifdef _DEBUG
+#ifdef VISUALIZE_NORMAL
 	VisualNorm,
 #endif
 	Count
@@ -65,6 +70,7 @@ private:
 
 	void LoadTextures();
 	void BuildRootSignature();
+	void BuildPostProcessRootSignature();
 	void BuildShadersAndInputLayout();
 	void BuildDescriptorHeaps();
 	void BuildLandGeometry();
@@ -99,8 +105,9 @@ private:
 	int mCurrFrameResourceIndex = 0;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
-	// Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mPostProcessRootSignature;
+
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvSrvUavDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<DX::Material>> mMaterials;
@@ -115,6 +122,7 @@ private:
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
 	std::unique_ptr<DX::Waves> mWaves{};
+	std::unique_ptr<DX::BlurFilter> mBlurFilter{};
 
 	DX::PassConstants mMainPassConstBuff;
 

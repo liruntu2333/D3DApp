@@ -50,7 +50,7 @@ void MeshGeometry::DisposeUploaders()
 	IndexBufferUploader = nullptr;
 }
 
-Microsoft::WRL::ComPtr<ID3DBlob> DX::LoadBinary(const std::wstring& filename)
+ComPtr<ID3DBlob> DX::LoadBinary(const std::wstring& filename)
 {
 	std::ifstream fin(filename, std::ios::binary);
 
@@ -67,7 +67,7 @@ Microsoft::WRL::ComPtr<ID3DBlob> DX::LoadBinary(const std::wstring& filename)
 	return blob;
 }
 
-Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
+ComPtr<ID3DBlob> DX::CompileShader(
 	const std::wstring& filename,
 	const D3D_SHADER_MACRO* defines,
 	const std::string& entryPoint,
@@ -96,12 +96,12 @@ Microsoft::WRL::ComPtr<ID3DBlob> DX::CompileShader(
 	return byteCode;
 }
 
-Microsoft::WRL::ComPtr<ID3D12Resource> DX::CreateDefaultBuffer(
+ComPtr<ID3D12Resource> DX::CreateDefaultBuffer(
 	ID3D12Device* device,
 	ID3D12GraphicsCommandList* cmdList,
 	const void* initData,
 	UINT64 byteSize,
-	Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer)
+	ComPtr<ID3D12Resource>& uploadBuffer)
 {
 	ComPtr<ID3D12Resource> defaultBuffer;
 
