@@ -176,13 +176,16 @@ void DX::BlurFilter::Execute(
 		UINT nGroupX = static_cast<UINT>(ceilf(static_cast<float>(mWidth) / 256.0f));
 		cmdList->Dispatch(nGroupX, mHeight, 1);
 
-		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
-			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		cmdList->ResourceBarrier(1, &barrier);
-
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ);
-		cmdList->ResourceBarrier(1, &barrier);
+		{
+			CD3DX12_RESOURCE_BARRIER barriers[] = 
+			{
+				CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
+				D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+				CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ),
+			};
+			cmdList->ResourceBarrier(_countof(barriers), barriers);
+		}
 
 		// vert blur pass
 		// BlurMap1 --vertBlur--> BlurMap0
@@ -193,33 +196,40 @@ void DX::BlurFilter::Execute(
 		UINT nGroupY = static_cast<UINT>(ceilf(static_cast<float>(mHeight) / 256.0f));
 		cmdList->Dispatch(mWidth, nGroupY, 1);
 
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ);
-		cmdList->ResourceBarrier(1, &barrier);
-
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
-			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		cmdList->ResourceBarrier(1, &barrier);
+		{
+			CD3DX12_RESOURCE_BARRIER barriers[] = 
+			{
+				CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ),
+				CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
+				D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
+			};
+			cmdList->ResourceBarrier(_countof(barriers), barriers);
+		}
 	}
 
 	{
-		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(input,
-			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-		cmdList->ResourceBarrier(1, &barrier);
+		CD3DX12_RESOURCE_BARRIER barriers[] =
+		{
+			CD3DX12_RESOURCE_BARRIER::Transition(input,
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST),
+			CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
+			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_SOURCE),
+		};
+		cmdList->ResourceBarrier(_countof(barriers), barriers);
+	}
+	// BlurMap0 --copy--> BackBuffer
+	cmdList->CopyResource(input, mBlurMap0.Get());
 
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
-			D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		cmdList->ResourceBarrier(1, &barrier);
-
-		// BlurMap0 --copy--> BackBuffer
-		cmdList->CopyResource(input, mBlurMap0.Get());
-
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-		cmdList->ResourceBarrier(1, &barrier);
-
-		barrier = CD3DX12_RESOURCE_BARRIER::Transition(input,
-			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-		cmdList->ResourceBarrier(1, &barrier);
+	{
+		CD3DX12_RESOURCE_BARRIER barriers[] =
+		{
+				
+			CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST),
+			CD3DX12_RESOURCE_BARRIER::Transition(input,
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT),
+		};
+		cmdList->ResourceBarrier(_countof(barriers), barriers);
 	}
 }

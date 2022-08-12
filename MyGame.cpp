@@ -86,11 +86,11 @@ void MyGame::OnResize()
 		CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
 		// Create an MSAA render target.
-		D3D12_RESOURCE_DESC msaaRTDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+		D3D12_RESOURCE_DESC msaaRtDesc = CD3DX12_RESOURCE_DESC::Tex2D(
 			mBackBufferFormat,
 			mClientWidth, mClientHeight,
 			1, 1, mSampleCount);
-		msaaRTDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		msaaRtDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 		D3D12_CLEAR_VALUE rtClearValue{};
 		rtClearValue.Format = mBackBufferFormat;
@@ -99,7 +99,7 @@ void MyGame::OnResize()
 		ThrowIfFailed(md3dDevice->CreateCommittedResource(
 			&heapProperties,
 			D3D12_HEAP_FLAG_NONE,
-			&msaaRTDesc,
+			&msaaRtDesc,
 			D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
 			&rtClearValue,
 			IID_PPV_ARGS(mMsaaRenderTarget.GetAddressOf())));
@@ -114,11 +114,12 @@ void MyGame::OnResize()
 		mMsaaRenderTarget->SetName(L"MSAA Render Target");
 
 		// Create an MSAA depth stencil view.
-		D3D12_RESOURCE_DESC msaaDSDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+		D3D12_RESOURCE_DESC msaaDsDesc = CD3DX12_RESOURCE_DESC::Tex2D(
 			mDepthStencilFormat,
 			mClientWidth, mClientHeight,
 			1, 1, mSampleCount);
-		msaaDSDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		msaaDsDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		msaaDsDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 
 		D3D12_CLEAR_VALUE dsClearValue{};
 		dsClearValue.Format = mDepthStencilFormat;
@@ -128,7 +129,7 @@ void MyGame::OnResize()
 		ThrowIfFailed(md3dDevice->CreateCommittedResource(
 			&heapProperties,
 			D3D12_HEAP_FLAG_NONE,
-			&msaaDSDesc,
+			&msaaDsDesc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&dsClearValue,
 			IID_PPV_ARGS(mMsaaDepthStencil.GetAddressOf())));
@@ -518,12 +519,12 @@ void MyGame::BuildDescriptorHeaps()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = grass->GetDesc().Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format                    = grass->GetDesc().Format;
+		srvDesc.ViewDimension             = D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		// Set to -1 to indicate all the mipmap levels from MostDetailedMip on down to least detailed.
-		srvDesc.Texture2D.MipLevels = -1;
+		srvDesc.Texture2D.MipLevels       = -1;
 		md3dDevice->CreateShaderResourceView(grass.Get(), &srvDesc, hDescriptor);
 
 		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
@@ -535,25 +536,22 @@ void MyGame::BuildDescriptorHeaps()
 		md3dDevice->CreateShaderResourceView(fence.Get(), &srvDesc, hDescriptor);
 
 		hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-		srvDesc.Format = trees->GetDesc().Format;
+		srvDesc.ViewDimension                  = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+		srvDesc.Format                         = trees->GetDesc().Format;
 		srvDesc.Texture2DArray.MostDetailedMip = 0;
-		srvDesc.Texture2DArray.MipLevels = -1;
+		srvDesc.Texture2DArray.MipLevels       = -1;
 		srvDesc.Texture2DArray.FirstArraySlice = 0;
-		srvDesc.Texture2DArray.ArraySize = trees->GetDesc().DepthOrArraySize;
+		srvDesc.Texture2DArray.ArraySize       = trees->GetDesc().DepthOrArraySize;
 		md3dDevice->CreateShaderResourceView(trees.Get(), &srvDesc, hDescriptor);
 	}
 
 	// Create descriptor heaps for BlurFilter resources.
-	{
-		mBlurFilter->BuildDescriptors(
-			CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-				4, mCbvSrvUavDescriptorSize),
-			CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
-				4, mCbvSrvUavDescriptorSize),
-			mCbvSrvUavDescriptorSize
-		);
-	}
+	mBlurFilter->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+		                              4, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+		                              4, mCbvSrvUavDescriptorSize),
+		mCbvSrvUavDescriptorSize);
 }
 
 void MyGame::LoadTextures()
