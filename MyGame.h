@@ -8,7 +8,7 @@
 #include "BlurFilter.h"
 
 #ifdef _DEBUG
-	//#define VISUALIZE_NORMAL
+	#define VISUALIZE_NORMAL
 #endif
 
 struct RenderItem

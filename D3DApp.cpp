@@ -379,7 +379,7 @@ void D3DApp::CreateCommandObjects()
 
 void D3DApp::CreateSwapChain()
 {
-	DXGI_SWAP_CHAIN_DESC swapChainDesc{};
+	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	swapChainDesc.BufferDesc.Width = mClientWidth;
 	swapChainDesc.BufferDesc.Height = mClientHeight;
 	swapChainDesc.BufferDesc.RefreshRate.Numerator = 60;

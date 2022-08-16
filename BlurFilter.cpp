@@ -27,11 +27,6 @@ std::vector<float> DX::BlurFilter::CalcGaussWeight(float sigma, int& radius)
 		weightSum += weight;
 	}
 
-	for (auto& weight : weights)
-	{
-		weight /= weightSum;
-	}
-
 	radius = blurR;
 	return weights;
 }
@@ -132,19 +127,20 @@ void DX::BlurFilter::OnResize(UINT width, UINT height)
 }
 
 void DX::BlurFilter::Execute(
-	ID3D12GraphicsCommandList* cmdList, 
-	ID3D12RootSignature* rootSig, 
-	ID3D12PipelineState* horzBlurPso, 
-	ID3D12PipelineState* vertBlurPso, 
-	ID3D12Resource* input, 
-	const int blurCnt) const
+	ID3D12GraphicsCommandList* cmdList,
+	ID3D12RootSignature* rootSig,
+	ID3D12PipelineState* horzBlurPso,
+	ID3D12PipelineState* vertBlurPso,
+	ID3D12Resource* input,
+	const int blurCnt, float sigmaSpace, const float sigmaRange) const
 {
 	int blurRadius = 0;
-	const auto weights = CalcGaussWeight(2.5f, blurRadius);
+	const auto weights = CalcGaussWeight(sigmaSpace, blurRadius);
 
 	cmdList->SetComputeRootSignature(rootSig);
 	cmdList->SetComputeRoot32BitConstants(0, 1, &blurRadius, 0);
-	cmdList->SetComputeRoot32BitConstants(0, static_cast<UINT>(weights.size()), weights.data(),1);
+	cmdList->SetComputeRoot32BitConstants(0, 1, &sigmaRange, 1);
+	cmdList->SetComputeRoot32BitConstants(0, static_cast<UINT>(weights.size()), weights.data(),2);
 
 	{
 		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(input,

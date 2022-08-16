@@ -5,6 +5,7 @@
 cbuffer cbSettings : register(b0)
 {
     int gBlurRadius;
+    float gSigmaR;
 
     float w0;
     float w1;

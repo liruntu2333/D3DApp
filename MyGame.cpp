@@ -255,7 +255,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 		mPipelineStateObjects["horzBlur"].Get(), 
 		mPipelineStateObjects["vertBlur"].Get(),
 		CurrentBackBuffer(), 
-		5);
+		1, 2.5f, 0.2f);
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -661,7 +661,7 @@ void MyGame::BuildPostProcessRootSignature()
 	uavTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
 
 	CD3DX12_ROOT_PARAMETER slotRootParams[3];
-	slotRootParams[0].InitAsConstants(12, 0);
+	slotRootParams[0].InitAsConstants(13, 0);
 	slotRootParams[1].InitAsDescriptorTable(1, &srvTbl);
 	slotRootParams[2].InitAsDescriptorTable(1, &uavTbl);
 

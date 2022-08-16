@@ -29,7 +29,7 @@ namespace DX
 			ID3D12PipelineState* horzBlurPso,
 			ID3D12PipelineState* vertBlurPso,
 			ID3D12Resource* input,
-			int blurCnt) const;
+			int blurCnt, float sigmaSpace, float sigmaRange) const;
 
 		static constexpr int DESCRIPTOR_COUNT = 4;
 
