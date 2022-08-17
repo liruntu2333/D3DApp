@@ -363,6 +363,7 @@ void D3DApp::CreateCommandObjects()
 
 	ThrowIfFailed(md3dDevice->CreateCommandQueue(&commandQueueDesc,
 		IID_PPV_ARGS(mCommandQueue.GetAddressOf())));
+	mCommandQueue->SetName(L"Main Command Queue");
 
 	ThrowIfFailed(md3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
@@ -373,7 +374,7 @@ void D3DApp::CreateCommandObjects()
 		mDirectCmdListAlloc.Get(),
 		nullptr,
 		IID_PPV_ARGS(mCommandList.GetAddressOf())));
-
+	mCommandList->SetName(L"Main Command List");
 	mCommandList->Close();
 }
 
@@ -418,12 +419,12 @@ void D3DApp::FlushCommandQueue()
 	}
 }
 
-ID3D12Resource* D3DApp::CurrentBackBuffer() const
+ID3D12Resource* D3DApp::GetCurrentBackBuffer() const
 {
 	return mSwapChainBuffer[mCurrBackBuffer].Get();
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView() const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::GetCurrentBackBufferView() const
 {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
 		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),

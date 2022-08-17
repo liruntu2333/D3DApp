@@ -1,66 +1,66 @@
-//***************************************************************************************
-// Waves.h by Frank Luna (C) 2011 All Rights Reserved.
-//
-// Performs the calculations for the wave simulation.  After the simulation has been
-// updated, the client must copy the current solution into vertex buffers for rendering.
-// This class only does the calculations, it does not do any drawing.
-//***************************************************************************************
+#pragma once
 
-#ifndef WAVES_H
-#define WAVES_H
-
-#include <vector>
-#include <DirectXMath.h>
+#include "D3DUtil.h"
+#include "GameTimer.h"
 
 namespace DX
 {
-    class Waves
-    {
-    public:
-        Waves(int m, int n, float dx, float dt, float speed, float damping);
-        Waves(const Waves& rhs) = delete;
-        Waves& operator=(const Waves& rhs) = delete;
-        ~Waves();
+	class Waves
+	{
+	public:
 
-        int RowCount()const;
-        int ColumnCount()const;
-        int VertexCount()const;
-        int TriangleCount()const;
-        float Width()const;
-        float Depth()const;
+		Waves(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, 
+		     int m, int n, float dx, float dt, float speed, float damping);
+		Waves(const Waves&) = delete;
+		Waves(const Waves&&) = delete;
+		Waves& operator=(const Waves&) = delete;
+		Waves& operator=(const Waves&&) = delete;
+		~Waves() = default;
 
-        // Returns the solution at the ith grid point.
-        const DirectX::XMFLOAT3& Position(int i)const { return mCurrSolution[i]; }
+		void BuildResource(ID3D12CommandQueue* cmdQueue);
 
-        // Returns the solution normal at the ith grid point.
-        const DirectX::XMFLOAT3& Normal(int i)const { return mNormals[i]; }
+		void BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc, CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDesc,
+			UINT descSize);
 
-        // Returns the unit tangent vector at the ith grid point in the local x-axis direction.
-        const DirectX::XMFLOAT3& TangentX(int i)const { return mTangentX[i]; }
+		[[nodiscard]] auto GetRowCount()        const { return mNumRows; }
+		[[nodiscard]] auto GetColumnCount()     const { return mNumCols; }
+		[[nodiscard]] auto GetVertexCount()     const { return mVertexCount; }
+		[[nodiscard]] auto GetTriangleCount()   const { return mTriangleCount; }
+		[[nodiscard]] auto GetWidth()           const { return static_cast<float>(mNumCols) * mSpatialStep; }
+		[[nodiscard]] auto GetDepth()           const { return static_cast<float>(mNumRows) * mSpatialStep; }
+		[[nodiscard]] auto GetSpatialStep()     const { return mSpatialStep; }
+		[[nodiscard]] auto GetDisplacementMap() const { return mCurrSolSrv; }
 
-        void Update(float dt);
-        void Disturb(int i, int j, float magnitude);
+		void Update(const GameTimer& gameTimer, ID3D12GraphicsCommandList* cmdList, ID3D12RootSignature* rootSig,
+		            ID3D12PipelineState* pso);
 
-    private:
-        int mNumRows = 0;
-        int mNumCols = 0;
+		void Disturb(ID3D12GraphicsCommandList* cmdList, ID3D12RootSignature* rootSig, ID3D12PipelineState* pso,
+					 UINT i, UINT j, float magnitude) const;
 
-        int mVertexCount = 0;
-        int mTriangleCount = 0;
+		static constexpr int DESCRIPTOR_COUNT = 6;
 
-        // Simulation constants we can precompute.
-        float mK1 = 0.0f;
-        float mK2 = 0.0f;
-        float mK3 = 0.0f;
+	private:
+		UINT mNumRows;
+		UINT mNumCols;
+		UINT mVertexCount;
+		UINT mTriangleCount;
 
-        float mTimeStep = 0.0f;
-        float mSpatialStep = 0.0f;
+		float mSimulationConstants[3]{};
+		float mTimeStep;
+		float mSpatialStep;
 
-        std::vector<DirectX::XMFLOAT3> mPrevSolution;
-        std::vector<DirectX::XMFLOAT3> mCurrSolution;
-        std::vector<DirectX::XMFLOAT3> mNormals;
-        std::vector<DirectX::XMFLOAT3> mTangentX;
-    };
+		ID3D12Device* md3dDevice;
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mPrevSolSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mCurrSolSrv;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mNextSolSrv;
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mPrevSolUav;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mCurrSolUav;
+		CD3DX12_GPU_DESCRIPTOR_HANDLE mNextSolUav;
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> mPrevSol;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mCurrSol;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mNextSol;
+	};
 }
-
-#endif // WAVES_H

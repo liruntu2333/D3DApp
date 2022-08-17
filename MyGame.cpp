@@ -17,7 +17,7 @@ using namespace DX;
 
 namespace 
 {
-	const float* gRenderTargetCleanValue = DirectX::Colors::SkyBlue.f;
+	const float* gRenderTargetCleanValue = DirectX::Colors::OrangeRed.f;
 }
 
 MyGame::MyGame(HINSTANCE hInstance) : D3DApp(hInstance) {}
@@ -49,12 +49,14 @@ bool MyGame::Initialize()
 
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 	mBlurFilter = std::make_unique<BlurFilter>(md3dDevice.Get(), mClientWidth, mClientHeight, DXGI_FORMAT_R8G8B8A8_UNORM);
+	mWaves = std::make_unique<Waves>(md3dDevice.Get(),mCommandQueue.Get(),
+		256, 256, 0.25f, 0.03f, 2.0f, 0.2f);
 
 	LoadTextures();
 	BuildRootSignature();
 	BuildPostProcessRootSignature();
+	BuildWavesRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildLandGeometry();
@@ -109,7 +111,7 @@ void MyGame::OnResize()
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
 
 		md3dDevice->CreateRenderTargetView(mMsaaRenderTarget.Get(), &rtvDesc,
-			mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
+			mMsaaRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
 
 		mMsaaRenderTarget->SetName(L"MSAA Render Target");
 
@@ -139,7 +141,7 @@ void MyGame::OnResize()
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
 
 		md3dDevice->CreateDepthStencilView(mMsaaDepthStencil.Get(),
-			&dsvDesc, mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
+			&dsvDesc, mMsaaDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
 
 		mMsaaDepthStencil->SetName(L"MSAA Depth Stencil");
 	}
@@ -177,43 +179,46 @@ void MyGame::Update(const GameTimer& gameTimer)
 	UpdateObjectConstBuffs(gameTimer);
 	UpdateMaterialConstBuffs(gameTimer);
 	UpdateMainPassConstBuffs(gameTimer);
-	UpdateWaves(gameTimer);
 }
 
 void MyGame::Draw(const GameTimer& gameTimer)
 {
 	using namespace DirectX;
 
-	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+	const auto& cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
 
 	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
+
+	// Changes the currently bound descriptor heaps that are associated with a command list.
+	ID3D12DescriptorHeap* heaps[] = { mCbvSrvUavDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(heaps), heaps);
+
+	UpdateWavesGpu(gameTimer);
+
+	mCommandList->SetPipelineState(mPipelineStateObjects["opaque"].Get());
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	{
-		D3D12_RESOURCE_BARRIER barrier = 
+		D3D12_RESOURCE_BARRIER barrier =
 			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
-			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+				D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 		mCommandList->ResourceBarrier(1, &barrier);
 	}
 
-	auto hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaRTVDescHeap->GetCPUDescriptorHandleForHeapStart());
-	auto hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaDSVDescHeap->GetCPUDescriptorHandleForHeapStart());
+	const auto& hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
+	const auto& hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
 	mCommandList->ClearRenderTargetView(hRtv, gRenderTargetCleanValue, 0, nullptr);
 	mCommandList->ClearDepthStencilView(hDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
 		1.0f, 0, 0, nullptr);
 
-	mCommandList->OMSetRenderTargets(1,&hRtv,
+	mCommandList->OMSetRenderTargets(1, &hRtv,
 		true, &hDsv);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
-	// Changes the currently bound descriptor heaps that are associated with a command list.
-	ID3D12DescriptorHeap* heaps[] = { mCbvSrvUavDescriptorHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(heaps), heaps);
 
 	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
@@ -229,6 +234,10 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
 	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
 
+	mCommandList->SetGraphicsRootDescriptorTable(4, mWaves->GetDisplacementMap());
+	mCommandList->SetPipelineState(mPipelineStateObjects["wavesRender"].Get());
+	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)]);
+
 #ifdef VISUALIZE_NORMAL
 	mCommandList->SetPipelineState(mPipelineStateObjects["visNorm"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)]);
@@ -237,7 +246,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
 		{
-			CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentBackBuffer(),
 			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST),
 			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
@@ -245,7 +254,7 @@ void MyGame::Draw(const GameTimer& gameTimer)
 		mCommandList->ResourceBarrier(_countof(barriers), barriers);
 	}
 
-	mCommandList->ResolveSubresource(CurrentBackBuffer(), 0,
+	mCommandList->ResolveSubresource(GetCurrentBackBuffer(), 0,
 		mMsaaRenderTarget.Get(), 0, mBackBufferFormat);
 
 	// Blur Post Effect pass
@@ -254,8 +263,8 @@ void MyGame::Draw(const GameTimer& gameTimer)
 		mPostProcessRootSignature.Get(),
 		mPipelineStateObjects["horzBlur"].Get(), 
 		mPipelineStateObjects["vertBlur"].Get(),
-		CurrentBackBuffer(), 
-		1, 2.5f, 0.2f);
+		GetCurrentBackBuffer(), 
+		0, 2.5f, D3D12_FLOAT32_MAX);
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -372,6 +381,8 @@ void MyGame::UpdateObjectConstBuffs(const GameTimer& gameTimer) const
 			XMStoreFloat4x4(&objConst.World, XMMatrixTranspose(world));
 			XMStoreFloat4x4(&objConst.TexTransform, XMMatrixTranspose(texTransform));
 			XMStoreFloat4x4(&objConst.WorldInvTranspose, XMMatrixTranspose(worldInvT));
+			objConst.DisplacementMapTexelSize = ri->DisplacementMapTexelSize;
+			objConst.GridSpatialStep = ri->GridSpatialStep;
 
 			currObjCb->CopyData(ri->ObjConstBuffIndex, objConst);
 
@@ -435,51 +446,38 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 
 	mMainPassConstBuff.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 
-	auto sunDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
+	const auto sunDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
 	XMStoreFloat3(&mMainPassConstBuff.Lights[0].Direction, sunDir);
-	mMainPassConstBuff.Lights[0].Intensity = { 0.9f,0.9f,0.9f };
 
+	mMainPassConstBuff.Lights[0].Intensity = { 0.6f, 0.6f, 0.6f };
 	mMainPassConstBuff.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mMainPassConstBuff.Lights[1].Intensity = { 0.5f, 0.5f, 0.5f };
+	mMainPassConstBuff.Lights[1].Intensity = { 0.3f, 0.3f, 0.3f };
 	mMainPassConstBuff.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mMainPassConstBuff.Lights[2].Intensity = { 0.2f, 0.2f, 0.2f };
+	mMainPassConstBuff.Lights[2].Intensity = { 0.15f, 0.15f, 0.15f };
 	
 	const auto currPassCb = mCurrFrameResource->PassConstBuff.get();
 	currPassCb->CopyData(0, mMainPassConstBuff);
 }
 
-void MyGame::UpdateWaves(const GameTimer& gameTimer) const
+void MyGame::UpdateWavesGpu(const GameTimer& gameTimer)
 {
 	static float tBase = 0.0f;
-	if ((mTimer.TotalTime() - tBase) >= 0.25f)
+
+	if (gameTimer.TotalTime() - tBase >= 0.25f)
 	{
 		tBase += 0.25f;
 
-		int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
-		int j = MathHelper::Rand(4, mWaves->RowCount() - 5);
+		int i = MathHelper::Rand(4, mWaves->GetRowCount() - 5);
+		int j = MathHelper::Rand(4, mWaves->GetColumnCount() - 5);
 
-		float r = MathHelper::RandF(0.2f, 0.5f);
+		float r = MathHelper::RandF(1.0f, 2.0f);
 
-		mWaves->Disturb(i, j, r);
+		mWaves->Disturb(mCommandList.Get(), mWavesRootSignature.Get(),
+			mPipelineStateObjects["wavesDisturb"].Get(), i, j, r);
 	}
 
-	mWaves->Update(gameTimer.DeltaTime());
-
-	auto currWavesVb = mCurrFrameResource->WaveVtxBuff.get();
-	for (int i = 0; i < mWaves->VertexCount(); ++i)
-	{
-		Vertex vtx;
-
-		vtx.Pos = mWaves->Position(i);
-		vtx.Normal = mWaves->Normal(i);
-
-		vtx.TexC.x = 0.5f + vtx.Pos.x / mWaves->Width();
-		vtx.TexC.y = 0.5f - vtx.Pos.z / mWaves->Depth();
-
-		currWavesVb->CopyData(i, vtx);
-	}
-
-	mWavesRenderItem->Geometry->VertexBufferGPU = currWavesVb->Resource();
+	mWaves->Update(gameTimer, mCommandList.Get(), mWavesRootSignature.Get(), 
+		mPipelineStateObjects["wavesUpdate"].Get());
 }
 
 void MyGame::BuildDescriptorHeaps()
@@ -491,19 +489,22 @@ void MyGame::BuildDescriptorHeaps()
 		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc,
-			IID_PPV_ARGS(mMsaaRTVDescHeap.GetAddressOf())));
+			IID_PPV_ARGS(mMsaaRtvDescHeap.GetAddressOf())));
 
 		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
 		dsvHeapDesc.NumDescriptors = 1;
 		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 
 		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc,
-			IID_PPV_ARGS(mMsaaDSVDescHeap.GetAddressOf())));
+			IID_PPV_ARGS(mMsaaDsvDescHeap.GetAddressOf())));
 	}
+
+	const int texCnt = static_cast<int>(mTextures.size());
 
 	// Create descriptor heap for CBVs, SRVs and UAVs.
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
-	heapDesc.NumDescriptors = static_cast<UINT>(mTextures.size() + BlurFilter::DESCRIPTOR_COUNT);
+	heapDesc.NumDescriptors = static_cast<UINT>(texCnt + BlurFilter::DESCRIPTOR_COUNT
+		+ Waves::DESCRIPTOR_COUNT);
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc,
@@ -548,18 +549,24 @@ void MyGame::BuildDescriptorHeaps()
 	// Create descriptor heaps for BlurFilter resources.
 	mBlurFilter->BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-		                              4, mCbvSrvUavDescriptorSize),
+		                              texCnt, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
-		                              4, mCbvSrvUavDescriptorSize),
+		                              texCnt, mCbvSrvUavDescriptorSize),
+		mCbvSrvUavDescriptorSize);
+
+	mWaves->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+			texCnt + BlurFilter::DESCRIPTOR_COUNT, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+			texCnt + BlurFilter::DESCRIPTOR_COUNT, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
 }
 
 void MyGame::LoadTextures()
 {
-	
 	auto grass = std::make_unique<Texture>();
 	grass->Name = "grassTex";
-	grass->FileName = L"Textures/grass.dds";
+	grass->FileName = L"Textures/grass12.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -573,7 +580,7 @@ void MyGame::LoadTextures()
 
 	auto water = std::make_unique<Texture>();
 	water->Name = "waterTex";
-	water->FileName = L"Textures/water1.dds";
+	water->FileName = L"Textures/juice.dds";
 	{
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
@@ -624,15 +631,19 @@ void MyGame::BuildRootSignature()
 	CD3DX12_DESCRIPTOR_RANGE texTbl;
 	texTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+	CD3DX12_DESCRIPTOR_RANGE dispMapTbl;
+	dispMapTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTbl, D3D12_SHADER_VISIBILITY_PIXEL);	// diffuse texture
 	slotRootParameter[1].InitAsConstantBufferView(0);	// object constants at b0
 	slotRootParameter[2].InitAsConstantBufferView(1);	// pass constants at b1
 	slotRootParameter[3].InitAsConstantBufferView(2);	// material constants at b2
+	slotRootParameter[4].InitAsDescriptorTable(1, &dispMapTbl, D3D12_SHADER_VISIBILITY_ALL);	// material constants at t1
 
-	auto staticSamplers = GetStaticSamplers();
+	const auto& staticSamplers = GetStaticSamplers();
 
-	const CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, 
+	const CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter, 
 		static_cast<UINT>(staticSamplers.size()), staticSamplers.data(), 
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -686,11 +697,42 @@ void MyGame::BuildPostProcessRootSignature()
 		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
 }
 
+void MyGame::BuildWavesRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE uavTbl0;
+	uavTbl0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE uavTbl1;
+	uavTbl1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1);
+	CD3DX12_DESCRIPTOR_RANGE uavTbl2;
+	uavTbl2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+
+	CD3DX12_ROOT_PARAMETER rootParams[4];
+	rootParams[0].InitAsConstants(6, 0);
+	rootParams[1].InitAsDescriptorTable(1, &uavTbl0);
+	rootParams[2].InitAsDescriptorTable(1, &uavTbl1);
+	rootParams[3].InitAsDescriptorTable(1, &uavTbl2);
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, rootParams);
+	Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mWavesRootSignature.GetAddressOf())));
+}
+
 void MyGame::BuildShadersAndInputLayout()
 {
-	//mShaders["defaultVS"] = CompileShader(L"shader/defaultVS.hlsl", nullptr, "main", "vs_5_1");
-	//mShaders["defaultPS"] = CompileShader(L"shader/defaultPS.hlsl", nullptr, "main", "ps_5_1");
-
 	mShaders["defaultVS"] = LoadBinary(L"CompiledShaders/defaultVS.cso");
 	mShaders["defaultPS"] = LoadBinary(L"CompiledShaders/defaultPS.cso");
 	mShaders["alphaTestedPS"] = LoadBinary(L"CompiledShaders/alphaTestedPS.cso");
@@ -714,11 +756,15 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["horzBlurCS"] = LoadBinary(L"CompiledShaders/horzBlurCS.cso");
 	mShaders["vertBlurCS"] = LoadBinary(L"CompiledShaders/vertBlurCS.cso");
 
+	mShaders["wavesVS"] = LoadBinary(L"CompiledShaders/wavesVS.cso");
+	mShaders["wavesUpdateCS"] = LoadBinary(L"CompiledShaders/wavesUpdateCS.cso");
+	mShaders["wavesDisturbCS"] = LoadBinary(L"CompiledShaders/wavesDisturbCS.cso");
+
 	mInputLayout =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Pos),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Position),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"NORMAL",	 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(Vertex, TexC),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(Vertex, TexCoord),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 
 	mTreeSpriteInputLayout =
@@ -737,10 +783,10 @@ void MyGame::BuildLandGeometry()
 	for (size_t i = 0; i < grid.Vertices.size(); ++i)
 	{
 		const auto& pos = grid.Vertices[i].Position;
-		vertices[i].Pos = pos;
-		vertices[i].Pos.y = GetHillsHeight(pos.x, pos.z);
+		vertices[i].Position = pos;
+		vertices[i].Position.y = GetHillsHeight(pos.x, pos.z);
 		vertices[i].Normal = GetHillsNormal(pos.x, pos.z);
-		vertices[i].TexC = grid.Vertices[i].TexC;
+		vertices[i].TexCoord = grid.Vertices[i].TexC;
 	}
 
 	std::vector<uint16_t> indices = grid.GetIndices16();
@@ -777,46 +823,41 @@ void MyGame::BuildLandGeometry()
 
 void MyGame::BuildWavesGeometry()
 {
-	std::vector<uint16_t> indices(3 * mWaves->TriangleCount());
-	assert(mWaves->VertexCount() < 0xffff);
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 
+		mWaves->GetRowCount(), mWaves->GetColumnCount());
 
-	int m = mWaves->RowCount();
-	int n = mWaves->ColumnCount();
-	int k = 0;
-	for (int i = 0; i < m - 1; ++i)
+	std::vector<Vertex> vertices(grid.Vertices.size());
+	for (int i = 0; i < vertices.size(); ++i)
 	{
-		for (int j = 0; j < n - 1; ++j)
-		{
-			indices[k] = i * n + j;
-			indices[k + 1] = i * n + j + 1;
-			indices[k + 2] = (i + 1) * n + j;
-
-			indices[k + 3] = (i + 1) * n + j;
-			indices[k + 4] = i * n + j + 1;
-			indices[k + 5] = (i + 1) * n + j + 1;
-
-			k += 6;
-		}
+		vertices[i].Position = grid.Vertices[i].Position;
+		vertices[i].Normal   = grid.Vertices[i].Normal;
+		vertices[i].TexCoord = grid.Vertices[i].TexC;
 	}
 
-	UINT vbByteSize = mWaves->VertexCount() * sizeof(Vertex);
-	UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint16_t);
+	std::vector indices(grid.Indices32);
+
+	const UINT vbByteSize = mWaves->GetVertexCount() * sizeof(Vertex);
+	const UINT ibByteSize = static_cast<UINT>(indices.size()) * sizeof(uint32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "waterGeo";
 
-	// Actual resources stores in frame resources.
-	geo->VertexBufferCPU      = nullptr;
-	geo->VertexBufferGPU      = nullptr;
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->VertexByteStride     = sizeof(Vertex);
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	memcpy(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, geo->IndexBufferCPU.GetAddressOf()));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+	memcpy(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
+		vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
 	geo->IndexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(),
-	                                          indices.data(), ibByteSize, geo->IndexBufferUploader);
+		indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-	geo->IndexFormat         = DXGI_FORMAT_R16_UINT;
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat         = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
@@ -826,7 +867,7 @@ void MyGame::BuildWavesGeometry()
 
 	geo->DrawArgs["grid"] = submesh;
 
-	mGeometries["waterGeo"] = std::move(geo);
+	mGeometries[geo->Name] = std::move(geo);
 }
 
 void MyGame::BuildSphereGeometry()
@@ -839,10 +880,10 @@ void MyGame::BuildSphereGeometry()
 	std::vector<Vertex> vertices(sphere.Vertices.size());
 	for (int i = 0; i < sphere.Vertices.size(); ++i)
 	{
-		vertices[i].Pos = sphere.Vertices[i].Position;
+		vertices[i].Position = sphere.Vertices[i].Position;
 		vertices[i].Normal = sphere.Vertices[i].Normal;
 		auto m = XMMatrixAffineTransformation2D({ 1.f,1.f,1.f }, { 0.5f,0.5f,}, XM_PIDIV4, {});
-		XMStoreFloat2(&vertices[i].TexC, XMVector2Transform(XMLoadFloat2(&sphere.Vertices[i].TexC), m));
+		XMStoreFloat2(&vertices[i].TexCoord, XMVector2Transform(XMLoadFloat2(&sphere.Vertices[i].TexC), m));
 	}
 
 	std::vector<uint16_t> indices = sphere.GetIndices16();
@@ -1058,7 +1099,6 @@ void MyGame::BuildPipelineStateObjects()
 	horzBlurPso.pRootSignature = mPostProcessRootSignature.Get();
 	horzBlurPso.CS.pShaderBytecode = mShaders["horzBlurCS"]->GetBufferPointer();
 	horzBlurPso.CS.BytecodeLength = mShaders["horzBlurCS"]->GetBufferSize();
-	horzBlurPso.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
 	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&horzBlurPso,
 		IID_PPV_ARGS(&mPipelineStateObjects["horzBlur"])));
@@ -1068,10 +1108,32 @@ void MyGame::BuildPipelineStateObjects()
 	vertBlurPso.pRootSignature = mPostProcessRootSignature.Get();
 	vertBlurPso.CS.pShaderBytecode = mShaders["vertBlurCS"]->GetBufferPointer();
 	vertBlurPso.CS.BytecodeLength = mShaders["vertBlurCS"]->GetBufferSize();
-	vertBlurPso.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
 	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&vertBlurPso,
 		IID_PPV_ARGS(&mPipelineStateObjects["vertBlur"])));
+
+	// PSO for drawing waves
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC wavesRenderPso = trnPsoDesc;
+	wavesRenderPso.VS.pShaderBytecode = mShaders["wavesVS"]->GetBufferPointer();
+	wavesRenderPso.VS.BytecodeLength = mShaders["wavesVS"]->GetBufferSize();
+	//wavesRenderPso.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&wavesRenderPso,
+		IID_PPV_ARGS(mPipelineStateObjects["wavesRender"].GetAddressOf())));
+
+	// PSOs for computing waves
+	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesDisturbPso{};
+	wavesDisturbPso.pRootSignature = mWavesRootSignature.Get();
+	wavesDisturbPso.CS.pShaderBytecode = mShaders["wavesDisturbCS"]->GetBufferPointer();
+	wavesDisturbPso.CS.BytecodeLength = mShaders["wavesDisturbCS"]->GetBufferSize();
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&wavesDisturbPso,
+		IID_PPV_ARGS(&mPipelineStateObjects["wavesDisturb"])));
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC wavesUpdatePso{};
+	wavesUpdatePso.pRootSignature = mWavesRootSignature.Get();
+	wavesUpdatePso.CS.pShaderBytecode = mShaders["wavesUpdateCS"]->GetBufferPointer();
+	wavesUpdatePso.CS.BytecodeLength = mShaders["wavesUpdateCS"]->GetBufferSize();
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&wavesUpdatePso,
+		IID_PPV_ARGS(&mPipelineStateObjects["wavesUpdate"])));
 }
 
 void MyGame::BuildFrameResources()
@@ -1081,10 +1143,10 @@ void MyGame::BuildFrameResources()
 		mFrameResources.push_back(
 			std::make_unique<FrameResource>
 			(
-			md3dDevice.Get(), 1, 
-			static_cast<UINT>(mRenderItems.size()), 
-			static_cast<UINT>(mWaves->VertexCount()),
-			static_cast<UINT>(mWaves->VertexCount())
+				md3dDevice.Get(),
+				1,
+				static_cast<UINT>(mRenderItems.size()),
+				static_cast<UINT>(mMaterials.size())
 			)
 		);
 	}
@@ -1100,7 +1162,7 @@ void MyGame::BuildMaterials()
 	grass->DiffuseSrvHeapIndex = 0;
 	grass->DiffuseAlbedo       = { 1.0f, 1.0f, 1.0f, 1.0f };
 	grass->FresnelR0           = XMFLOAT3(0.01f, 0.01f, 0.01f);
-	grass->Roughness           = 0.125f;
+	grass->Roughness           = 0.8f;
 
 	auto water = std::make_unique<Material>();
 	water->Name                = "water";
@@ -1139,6 +1201,7 @@ void MyGame::BuildRenderItems()
 	auto wave = std::make_unique<RenderItem>();
 	wave->World              = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&wave->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	wave->DisplacementMapTexelSize = { 1.0f / mWaves->GetColumnCount(), 1.0f / mWaves->GetRowCount() };
 	wave->ObjConstBuffIndex  = 0;
 	wave->Material           = mMaterials["water"].get();
 	wave->Geometry           = mGeometries["waterGeo"].get();
@@ -1149,11 +1212,11 @@ void MyGame::BuildRenderItems()
 
 	mWavesRenderItem = wave.get();
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)].push_back(wave.get());
+	mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)].push_back(wave.get());
 
 	auto land = std::make_unique<RenderItem>();
 	land->World              = MathHelper::Identity4x4();
-	XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
 	land->ObjConstBuffIndex  = 1;
 	land->Material           = mMaterials["grass"].get();
 	land->Geometry           = mGeometries["landGeo"].get();
@@ -1190,9 +1253,9 @@ void MyGame::BuildRenderItems()
 
 #ifdef VISUALIZE_NORMAL
 
-	auto waveNorm = std::make_unique<RenderItem>(*wave);
-	waveNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(waveNorm.get());
+	//auto waveNorm = std::make_unique<RenderItem>(*wave);
+	//waveNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	//mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(waveNorm.get());
 	auto landNorm = std::make_unique<RenderItem>(*land);
 	landNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
 	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(landNorm.get());
@@ -1200,7 +1263,7 @@ void MyGame::BuildRenderItems()
 	sphereNorm->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
 	mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)].push_back(sphereNorm.get());
 
-	mRenderItems.push_back(std::move(waveNorm));
+	//mRenderItems.push_back(std::move(waveNorm));
 	mRenderItems.push_back(std::move(landNorm));
 	mRenderItems.push_back(std::move(sphereNorm));
 

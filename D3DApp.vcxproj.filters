@@ -31,6 +31,9 @@
     <Filter Include="Shader\blur">
       <UniqueIdentifier>{ad0e128d-f576-4be9-beef-47015275bd04}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\waves">
+      <UniqueIdentifier>{cb45ee81-7c66-42bf-9782-b447d63ef677}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -54,10 +57,10 @@
     <ClCompile Include="MathHelper.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="Waves.cpp">
+    <ClCompile Include="BlurFilter.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="BlurFilter.cpp">
+    <ClCompile Include="Waves.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -83,13 +86,13 @@
     <ClInclude Include="MathHelper.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
-    <ClInclude Include="Waves.h">
-      <Filter>Source\Core</Filter>
-    </ClInclude>
     <ClInclude Include="UploadBuffer.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="BlurFilter.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Waves.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
   </ItemGroup>
@@ -142,6 +145,15 @@
     <FxCompile Include="Shader\vertBlurCS.hlsl">
       <Filter>Shader\blur</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\wavesUpdateCS.hlsl">
+      <Filter>Shader\waves</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\wavesDisturbCS.hlsl">
+      <Filter>Shader\waves</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\wavesVS.hlsl">
+      <Filter>Shader\waves</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -164,6 +176,9 @@
     </None>
     <None Include="Shader\blur.hlsli">
       <Filter>Shader\blur</Filter>
+    </None>
+    <None Include="Shader\waveSim.hlsli">
+      <Filter>Shader\waves</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -276,6 +291,12 @@
       <Filter>Asset</Filter>
     </CopyFileToFolders>
     <CopyFileToFolders Include="Textures\WoodCrate02.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\grass12.dds">
+      <Filter>Asset</Filter>
+    </CopyFileToFolders>
+    <CopyFileToFolders Include="Textures\juice.dds">
       <Filter>Asset</Filter>
     </CopyFileToFolders>
   </ItemGroup>

@@ -15,7 +15,8 @@
 
 #include "lightingUtil.hlsli"
 
-Texture2D gDiffuseMap : register(t0);
+Texture2D<float4> gDiffuseMap : register(t0);
+Texture2D<float> gDisplacementMap : register(t1);
 
 SamplerState gSamPointWrap        : register(s0);
 SamplerState gSamPointClamp       : register(s1);
@@ -28,6 +29,9 @@ cbuffer cbPerObect : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
+    float4x4 gWorldInvTranspose;
+    float2 gDisplacementMapTexelSize;
+    float  gGridSpatialStep;
 }
 
 cbuffer cbPass : register(b1)

@@ -11,6 +11,8 @@ namespace DX
 		DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 WorldInvTranspose = MathHelper::Identity4x4();
+		DirectX::XMFLOAT2	DisplacementMapTexelSize = { 1.0f, 1.0f };
+		float				GridSpatialStep = 1.0f;
 	};
 
 	struct PassConstants
@@ -42,15 +44,15 @@ namespace DX
 
 	struct Vertex
 	{
-		DirectX::XMFLOAT3 Pos;
+		DirectX::XMFLOAT3 Position;
 		DirectX::XMFLOAT3 Normal;
-		DirectX::XMFLOAT2 TexC;
+		DirectX::XMFLOAT2 TexCoord;
 	};
 
 	struct FrameResource
 	{
 		FrameResource(ID3D12Device* device, UINT passCount, 
-			UINT objectCount, UINT materialCount, UINT waveVertCount);
+			UINT objectCount, UINT materialCount);
 		FrameResource(const FrameResource&) = delete;
 		FrameResource(FrameResource&&) = delete;
 		FrameResource& operator=(const FrameResource&) = delete;
@@ -62,7 +64,6 @@ namespace DX
 		std::unique_ptr<UploadBuffer<PassConstants>> PassConstBuff{};
 		std::unique_ptr<UploadBuffer<ObjectConstants>> ObjConstBuff{};
 		std::unique_ptr<UploadBuffer<MaterialConstants>> MatConstBuff{};
-		std::unique_ptr<UploadBuffer<Vertex>> WaveVtxBuff{};
 
 		UINT64 Fence = 0;
 	};

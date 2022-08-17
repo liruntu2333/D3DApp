@@ -4,7 +4,7 @@
 #include "MathHelper.h"
 #include "UploadBuffer.h"
 #include "FrameResource.h"
-#include  "Waves.h"
+#include "Waves.h"
 #include "BlurFilter.h"
 
 #ifdef _DEBUG
@@ -14,17 +14,21 @@
 struct RenderItem
 {
 	RenderItem() = default;
-	DirectX::XMFLOAT4X4 World              = DX::MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 TexTransform       = DX::MathHelper::Identity4x4();
-	int NumFrameDirty                      = DX::FRAME_RESOURCES_NUM;
-	UINT ObjConstBuffIndex                 = -1;
+	DirectX::XMFLOAT4X4 World                   = DX::MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 TexTransform            = DX::MathHelper::Identity4x4();
 
-	DX::Material* Material                 = nullptr;
-	DX::MeshGeometry* Geometry             = nullptr;
-	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	UINT IndexCount                        = 0;
-	UINT StartIndexLocation                = 0;
-	int BaseVertexLocation                 = 0;
+	DirectX::XMFLOAT2 DisplacementMapTexelSize  = { 1.0f, 1.0f };
+	float GridSpatialStep                       = 1.0f;
+
+	int NumFrameDirty                           = DX::FRAME_RESOURCES_NUM;
+	UINT ObjConstBuffIndex                      = -1;
+
+	DX::Material* Material                      = nullptr;
+	DX::MeshGeometry* Geometry                  = nullptr;
+	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	UINT IndexCount                             = 0;
+	UINT StartIndexLocation                     = 0;
+	int BaseVertexLocation                      = 0;
 };
 
 enum class RenderLayer : int
@@ -33,6 +37,7 @@ enum class RenderLayer : int
 	Transparent,
 	AlphaTested,
 	AlphaTestedTreeSprite,
+	GpuWaves,
 #ifdef VISUALIZE_NORMAL
 	VisualNorm,
 #endif
@@ -63,14 +68,15 @@ private:
 	void OnKeyboardInput         (const GameTimer& gameTimer);
 	void UpdateCamera            (const GameTimer& gameTimer);
 	void AnimateMaterials		 (const GameTimer& gameTimer);
-	void UpdateObjectConstBuffs   (const GameTimer& gameTimer) const;
+	void UpdateObjectConstBuffs  (const GameTimer& gameTimer) const;
 	void UpdateMaterialConstBuffs(const GameTimer& gameTimer) const;
 	void UpdateMainPassConstBuffs(const GameTimer& gameTimer);
-	void UpdateWaves(const GameTimer& gameTimer) const;
+	void UpdateWavesGpu			 (const GameTimer& gameTimer);
 
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildPostProcessRootSignature();
+	void BuildWavesRootSignature();
 	void BuildShadersAndInputLayout();
 	void BuildDescriptorHeaps();
 	void BuildLandGeometry();
@@ -95,8 +101,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaRenderTarget;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaDepthStencil;
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaRTVDescHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaDSVDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaRtvDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaDsvDescHeap;
 
 	unsigned int mSampleCount = 0;
 
@@ -106,6 +112,7 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mPostProcessRootSignature;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mWavesRootSignature;
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvSrvUavDescriptorHeap;
 
@@ -121,6 +128,7 @@ private:
 	RenderItem* mWavesRenderItem = nullptr;
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
+
 	std::unique_ptr<DX::Waves> mWaves{};
 	std::unique_ptr<DX::BlurFilter> mBlurFilter{};
 
@@ -134,8 +142,8 @@ private:
 	float mPhi = DirectX::XM_PIDIV2 - 0.1f;
 	float mRadius = 50.0f;
 
-	float mSunTheta = 1.25f * DirectX::XM_PI;
-	float mSunPhi = DirectX::XM_PIDIV4;
+	float mSunTheta = 8.0f;
+	float mSunPhi = 1.0f;
 
 	POINT mLastMousePos{};
 };

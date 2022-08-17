@@ -64,8 +64,8 @@ protected:
 
 	void FlushCommandQueue();
 
-	ID3D12Resource* CurrentBackBuffer() const;
-	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const;
+	ID3D12Resource* GetCurrentBackBuffer() const;
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferView() const;
 
 	void CalculateFrameStats() const;
 
@@ -112,7 +112,7 @@ protected:
 	UINT mCbvSrvUavDescriptorSize = 0;
 
 	// Derived class should set these in derived constructor to customize starting values.
-	std::wstring mMainWndCaption = L"壹隻憂鬱臺灣烏龜尋釁幾羣骯髒變態囓齒鱷龞，幾羣骯髒變態囓齒鱷龞圍毆壹隻憂鬱臺灣烏龜。";
+	std::wstring mMainWndCaption = L"TequilaSunset";
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
 	DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
