@@ -1,10 +1,10 @@
 #pragma once
 
-#include "D3DUtil.h"
+#include "Filter.h"
 
 namespace DX
 {
-	class BlurFilter
+	class BlurFilter final : public Filter
 	{
 	public:
 		BlurFilter(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format);
@@ -12,16 +12,14 @@ namespace DX
 		BlurFilter(const BlurFilter&&) = delete;
 		BlurFilter& operator=(const BlurFilter&) = delete;
 		BlurFilter& operator=(const BlurFilter&&) = delete;
-		~BlurFilter() = default;
+		~BlurFilter() override = default;
 
 		//[[nodiscard]] ID3D12Resource* Output() const { return mBlurMap0.Get(); };
 
 		void BuildDescriptors(
 			CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc, 
 			CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDesc,
-			UINT descSize);
-
-		void OnResize(UINT width, UINT height);
+			UINT descSize) override;
 
 		void Execute(
 			ID3D12GraphicsCommandList* cmdList,
@@ -31,22 +29,16 @@ namespace DX
 			ID3D12Resource* input,
 			int blurCnt, float sigmaSpace, float sigmaRange) const;
 
-		static constexpr int DESCRIPTOR_COUNT = 4;
+		static constexpr int SRV_UAV_COUNT = 4;
 
 	private:
 		static std::vector<float> CalcGaussWeight(float sigma, int& radius);
 
-		void BuildDescriptors() const;
-		void BuildResources();
+		void BuildDescriptors() const override;
+		void BuildResources() override;
 
 	private:
 		static constexpr int MAX_BLUR_RADIUS = 5;
-
-		ID3D12Device* md3dDevice = nullptr;
-
-		UINT mWidth = 0;
-		UINT mHeight = 0;
-		DXGI_FORMAT mFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE mBlur0CpuSrv;
 		CD3DX12_GPU_DESCRIPTOR_HANDLE mBlur0GpuSrv;

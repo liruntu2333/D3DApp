@@ -64,8 +64,9 @@ protected:
 
 	void FlushCommandQueue();
 
-	ID3D12Resource* GetCurrentBackBuffer() const;
-	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferView() const;
+	[[nodiscard]] ID3D12Resource* GetCurrentBackBuffer() const;
+	[[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferRtv() const;
+	[[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferDsv() const;
 
 	void CalculateFrameStats() const;
 
@@ -101,8 +102,10 @@ protected:
 	static constexpr int SWAP_CHAIN_BUFFER_COUNT = 2;
 	int mCurrBackBuffer = 0;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SWAP_CHAIN_BUFFER_COUNT];
+	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
 
 	D3D12_VIEWPORT mScreenViewport{};
 	D3D12_RECT mScissorRect{};

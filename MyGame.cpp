@@ -49,9 +49,17 @@ bool MyGame::Initialize()
 
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mBlurFilter = std::make_unique<BlurFilter>(md3dDevice.Get(), mClientWidth, mClientHeight, DXGI_FORMAT_R8G8B8A8_UNORM);
+	mBlurFilter = std::make_unique<BlurFilter>(md3dDevice.Get(), 
+		mClientWidth, mClientHeight, mBackBufferFormat);
+
 	mWaves = std::make_unique<Waves>(md3dDevice.Get(),mCommandQueue.Get(),
 		256, 256, 0.25f, 0.03f, 2.0f, 0.2f);
+
+	mSobelFilter = std::make_unique<SobelFilter>(md3dDevice.Get(),
+		mClientWidth, mClientHeight, mBackBufferFormat);
+
+	mMsaaResolveDest = std::make_unique<MidwayTexture>(md3dDevice.Get(), 
+		mClientWidth, mClientHeight, mBackBufferFormat);
 
 	LoadTextures();
 	BuildRootSignature();
@@ -111,7 +119,7 @@ void MyGame::OnResize()
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
 
 		md3dDevice->CreateRenderTargetView(mMsaaRenderTarget.Get(), &rtvDesc,
-			mMsaaRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
+			mRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
 
 		mMsaaRenderTarget->SetName(L"MSAA Render Target");
 
@@ -141,7 +149,7 @@ void MyGame::OnResize()
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
 
 		md3dDevice->CreateDepthStencilView(mMsaaDepthStencil.Get(),
-			&dsvDesc, mMsaaDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
+			&dsvDesc, mDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
 
 		mMsaaDepthStencil->SetName(L"MSAA Depth Stencil");
 	}
@@ -151,8 +159,20 @@ void MyGame::OnResize()
 		1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, proj);
 
-	assert(mBlurFilter != nullptr && "Blur Filter is nullptr.");
-	mBlurFilter->OnResize(mClientWidth, mClientHeight);
+	if (mBlurFilter != nullptr)
+	{
+		mBlurFilter->OnResize(mClientWidth, mClientHeight);
+	}
+
+	if (mSobelFilter != nullptr)
+	{
+		mSobelFilter->OnResize(mClientWidth, mClientHeight);
+	}
+
+	if (mMsaaResolveDest != nullptr)
+	{
+		mMsaaResolveDest->OnResize(mClientWidth, mClientHeight);
+	}
 }
 
 void MyGame::Update(const GameTimer& gameTimer)
@@ -190,81 +210,118 @@ void MyGame::Draw(const GameTimer& gameTimer)
 
 	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPipelineStateObjects["opaque"].Get()));
 
-	// Changes the currently bound descriptor heaps that are associated with a command list.
-	ID3D12DescriptorHeap* heaps[] = { mCbvSrvUavDescriptorHeap.Get() };
+	ID3D12DescriptorHeap* heaps[] = { mSrvUavDescHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(heaps), heaps);
 
 	UpdateWavesGpu(gameTimer);
 
-	mCommandList->SetPipelineState(mPipelineStateObjects["opaque"].Get());
-
-	mCommandList->RSSetViewports(1, &mScreenViewport);
-	mCommandList->RSSetScissorRects(1, &mScissorRect);
-
+	// MSAA render target and depth stencil setups
 	{
-		D3D12_RESOURCE_BARRIER barrier =
-			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
-				D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		{
+			D3D12_RESOURCE_BARRIER barrier =
+				CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
+					D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-		mCommandList->ResourceBarrier(1, &barrier);
+			mCommandList->ResourceBarrier(1, &barrier);
+		}
+
+		const auto& hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
+		const auto& hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
+		mCommandList->ClearRenderTargetView(hRtv, gRenderTargetCleanValue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(hDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+			1.0f, 0, 0, nullptr);
+		mCommandList->OMSetRenderTargets(1, &hRtv,
+			true, &hDsv);
 	}
 
-	const auto& hRtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaRtvDescHeap->GetCPUDescriptorHandleForHeapStart());
-	const auto& hDsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mMsaaDsvDescHeap->GetCPUDescriptorHandleForHeapStart());
-	mCommandList->ClearRenderTargetView(hRtv, gRenderTargetCleanValue, 0, nullptr);
-	mCommandList->ClearDepthStencilView(hDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-		1.0f, 0, 0, nullptr);
+	// forward rendering
+	{
+		mCommandList->SetPipelineState(mPipelineStateObjects["opaque"].Get());
+		mCommandList->RSSetViewports(1, &mScreenViewport);
+		mCommandList->RSSetScissorRects(1, &mScissorRect);
+		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		auto passCb = mCurrFrameResource->PassConstBuff->Resource();
+		mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
 
-	mCommandList->OMSetRenderTargets(1, &hRtv,
-		true, &hDsv);
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
 
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
 
-	auto passCb = mCurrFrameResource->PassConstBuff->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCb->GetGPUVirtualAddress());
+		mCommandList->SetPipelineState(mPipelineStateObjects["treeSprite"].Get());
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)]);
 
-	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
+		mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
 
-	mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
-	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
-
-	mCommandList->SetPipelineState(mPipelineStateObjects["treeSprite"].Get());
-	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)]);
-
-	mCommandList->SetPipelineState(mPipelineStateObjects["transparent"].Get());
-	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Transparent)]);
-
-	mCommandList->SetGraphicsRootDescriptorTable(4, mWaves->GetDisplacementMap());
-	mCommandList->SetPipelineState(mPipelineStateObjects["wavesRender"].Get());
-	DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)]);
+		mCommandList->SetGraphicsRootDescriptorTable(4, mWaves->GetDisplacementMap());
+		mCommandList->SetPipelineState(mPipelineStateObjects["wavesRender"].Get());
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)]);
 
 #ifdef VISUALIZE_NORMAL
-	mCommandList->SetPipelineState(mPipelineStateObjects["visNorm"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)]);
+		mCommandList->SetPipelineState(mPipelineStateObjects["visNorm"].Get());
+		DrawRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::VisualNorm)]);
 #endif
+	}
 
+	// MSAA render target resolve to back buffer
 	{
 		CD3DX12_RESOURCE_BARRIER barriers[] =
 		{
-			CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST),
+			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaResolveDest->GetResource(),
+			                                     D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RESOLVE_DEST),
 			CD3DX12_RESOURCE_BARRIER::Transition(mMsaaRenderTarget.Get(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+			                                     D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
 		};
+
 		mCommandList->ResourceBarrier(_countof(barriers), barriers);
+		mCommandList->ResolveSubresource(mMsaaResolveDest->GetResource(), 0,
+		mMsaaRenderTarget.Get(), 0, mBackBufferFormat);
 	}
 
-	mCommandList->ResolveSubresource(GetCurrentBackBuffer(), 0,
-		mMsaaRenderTarget.Get(), 0, mBackBufferFormat);
-
 	// Blur Post Effect pass
-	mBlurFilter->Execute(
-		mCommandList.Get(), 
-		mPostProcessRootSignature.Get(),
-		mPipelineStateObjects["horzBlur"].Get(), 
-		mPipelineStateObjects["vertBlur"].Get(),
-		GetCurrentBackBuffer(), 
-		0, 2.5f, D3D12_FLOAT32_MAX);
+	{
+		mBlurFilter->Execute(
+			mCommandList.Get(),
+			mBlurRootSignature.Get(),
+			mPipelineStateObjects["horzBlur"].Get(),
+			mPipelineStateObjects["vertBlur"].Get(),
+			mMsaaResolveDest->GetResource(),
+			0, 2.5f, D3D12_FLOAT32_MAX);
+	}
+
+	// Sobel filter pass
+	{
+		auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(mMsaaResolveDest->GetResource(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_GENERIC_READ);
+		mCommandList->ResourceBarrier(1, &barrier);
+
+		mSobelFilter->Execute(mCommandList.Get(), mSobelRootSignature.Get(),
+			mPipelineStateObjects["sobel"].Get(), mMsaaResolveDest->GetSrv());
+
+		barrier = CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		mCommandList->ResourceBarrier(1, &barrier);
+
+		const D3D12_CPU_DESCRIPTOR_HANDLE backBufferRtv = GetCurrentBackBufferRtv();
+		mCommandList->OMSetRenderTargets(1, &backBufferRtv,
+			true, nullptr);
+		mCommandList->SetGraphicsRootSignature(mSobelRootSignature.Get());
+		mCommandList->SetPipelineState(mPipelineStateObjects["composite"].Get());
+		mCommandList->SetGraphicsRootDescriptorTable(0, mMsaaResolveDest->GetSrv());
+		mCommandList->SetGraphicsRootDescriptorTable(1, mSobelFilter->GetOutputSrv());
+
+		{	// draw a fullscreen rectangle, shader SV_VertexID defines the vertex
+			mCommandList->IASetVertexBuffers(0, 0, nullptr);
+			mCommandList->IASetIndexBuffer(nullptr);
+			mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			mCommandList->DrawInstanced(6, 1, 0, 0);
+		}
+
+		barrier = CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		mCommandList->ResourceBarrier(1, &barrier);
+	}
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -485,30 +542,33 @@ void MyGame::BuildDescriptorHeaps()
 	// Create descriptor heaps for MSAA render target views and depth stencil views.
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-		rtvHeapDesc.NumDescriptors = 1;
+		rtvHeapDesc.NumDescriptors = 2;
 		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc,
-			IID_PPV_ARGS(mMsaaRtvDescHeap.GetAddressOf())));
+			IID_PPV_ARGS(mRtvDescHeap.GetAddressOf())));
 
 		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
 		dsvHeapDesc.NumDescriptors = 1;
 		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 
 		ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc,
-			IID_PPV_ARGS(mMsaaDsvDescHeap.GetAddressOf())));
+			IID_PPV_ARGS(mDsvDescHeap.GetAddressOf())));
 	}
 
 	const int texCnt = static_cast<int>(mTextures.size());
 
 	// Create descriptor heap for CBVs, SRVs and UAVs.
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
-	heapDesc.NumDescriptors = static_cast<UINT>(texCnt + BlurFilter::DESCRIPTOR_COUNT
-		+ Waves::DESCRIPTOR_COUNT);
+	heapDesc.NumDescriptors = static_cast<UINT>(texCnt + BlurFilter::SRV_UAV_COUNT
+		+ Waves::SRV_UAV_COUNT + SobelFilter::SRV_UAV_COUNT + MidwayTexture::SRV_COUNT);
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc,
-		IID_PPV_ARGS(mCbvSrvUavDescriptorHeap.GetAddressOf())));
+		IID_PPV_ARGS(mSrvUavDescHeap.GetAddressOf())));
+
+	auto hCpuStart = mSrvUavDescHeap->GetCPUDescriptorHandleForHeapStart();
+	auto hGpuStart = mSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart();
 
 	{
 		// Fill actual SRVs into the heap.
@@ -517,7 +577,7 @@ void MyGame::BuildDescriptorHeaps()
 		auto fence = mTextures["fenceTex"]->Resource;
 		auto trees = mTextures["treeArrayTex"]->Resource;
 
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(hCpuStart);
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.Shader4ComponentMapping   = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -547,19 +607,28 @@ void MyGame::BuildDescriptorHeaps()
 	}
 
 	// Create descriptor heaps for BlurFilter resources.
+	int srvUavOffset = texCnt;
 	mBlurFilter->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-		                              texCnt, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
-		                              texCnt, mCbvSrvUavDescriptorSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(hCpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(hGpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
 
+	srvUavOffset += BlurFilter::SRV_UAV_COUNT;
 	mWaves->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-			texCnt + BlurFilter::DESCRIPTOR_COUNT, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
-			texCnt + BlurFilter::DESCRIPTOR_COUNT, mCbvSrvUavDescriptorSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(hCpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(hGpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
+
+	srvUavOffset += Waves::SRV_UAV_COUNT;
+	mSobelFilter->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(hCpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(hGpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
+		mCbvSrvUavDescriptorSize);
+
+	srvUavOffset += SobelFilter::SRV_UAV_COUNT;
+	mMsaaResolveDest->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(hCpuStart, srvUavOffset, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(hGpuStart, srvUavOffset, mCbvSrvUavDescriptorSize));
 }
 
 void MyGame::LoadTextures()
@@ -667,34 +736,73 @@ void MyGame::BuildRootSignature()
 
 void MyGame::BuildPostProcessRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE srvTbl, uavTbl;
-	srvTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-	uavTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+	{	// blur filter root signature
+		CD3DX12_DESCRIPTOR_RANGE srvTbl, uavTbl;
+		srvTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+		uavTbl.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParams[3];
-	slotRootParams[0].InitAsConstants(13, 0);
-	slotRootParams[1].InitAsDescriptorTable(1, &srvTbl);
-	slotRootParams[2].InitAsDescriptorTable(1, &uavTbl);
+		CD3DX12_ROOT_PARAMETER slotRootParams[3];
+		slotRootParams[0].InitAsConstants(13, 0);
+		slotRootParams[1].InitAsDescriptorTable(1, &srvTbl);
+		slotRootParams[2].InitAsDescriptorTable(1, &uavTbl);
 
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParams, 0, nullptr, 
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParams, 0, nullptr,
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
-	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
-	const HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+		Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+		const HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+			serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-	if (errorBlob != nullptr)
-	{
-		OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+		if (errorBlob != nullptr)
+		{
+			OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+		}
+		ThrowIfFailed(hr);
+
+		ThrowIfFailed(md3dDevice->CreateRootSignature(
+			0,
+			serializedRootSig->GetBufferPointer(),
+			serializedRootSig->GetBufferSize(),
+			IID_PPV_ARGS(mBlurRootSignature.GetAddressOf())));
 	}
-	ThrowIfFailed(hr);
 
-	ThrowIfFailed(md3dDevice->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+	{	// Sobel filter root signature
+		CD3DX12_DESCRIPTOR_RANGE srvTbl0;
+		srvTbl0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+		CD3DX12_DESCRIPTOR_RANGE srvTbl1;
+		srvTbl1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
+		CD3DX12_DESCRIPTOR_RANGE uavTbl0;
+		uavTbl0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+		CD3DX12_ROOT_PARAMETER rootParams[3];
+		rootParams[0].InitAsDescriptorTable(1, &srvTbl0);
+		rootParams[1].InitAsDescriptorTable(1, &srvTbl1);
+		rootParams[2].InitAsDescriptorTable(1, &uavTbl0);
+
+		auto staticSamplers = GetStaticSamplers();
+
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, rootParams, 
+			static_cast<UINT>(staticSamplers.size()), staticSamplers.data(),
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+		const HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+			serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+		if (errorBlob != nullptr)
+		{
+			OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+		}
+		ThrowIfFailed(hr);
+
+		ThrowIfFailed(md3dDevice->CreateRootSignature(
+			0,
+			serializedRootSig->GetBufferPointer(),
+			serializedRootSig->GetBufferSize(),
+			IID_PPV_ARGS(mSobelRootSignature.GetAddressOf())));
+	}
 }
 
 void MyGame::BuildWavesRootSignature()
@@ -759,6 +867,10 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["wavesVS"] = LoadBinary(L"CompiledShaders/wavesVS.cso");
 	mShaders["wavesUpdateCS"] = LoadBinary(L"CompiledShaders/wavesUpdateCS.cso");
 	mShaders["wavesDisturbCS"] = LoadBinary(L"CompiledShaders/wavesDisturbCS.cso");
+
+	mShaders["sobelCS"] = LoadBinary(L"CompiledShaders/sobelCS.cso");
+	mShaders["compositeVS"] = LoadBinary(L"CompiledShaders/compositeVS.cso");
+	mShaders["compositePS"] = LoadBinary(L"CompiledShaders/compositePS.cso");
 
 	mInputLayout =
 	{
@@ -1096,7 +1208,7 @@ void MyGame::BuildPipelineStateObjects()
 
 	// PSO for horizontal blur
 	D3D12_COMPUTE_PIPELINE_STATE_DESC horzBlurPso{};
-	horzBlurPso.pRootSignature = mPostProcessRootSignature.Get();
+	horzBlurPso.pRootSignature = mBlurRootSignature.Get();
 	horzBlurPso.CS.pShaderBytecode = mShaders["horzBlurCS"]->GetBufferPointer();
 	horzBlurPso.CS.BytecodeLength = mShaders["horzBlurCS"]->GetBufferSize();
 
@@ -1105,7 +1217,7 @@ void MyGame::BuildPipelineStateObjects()
 
 	// PSO for vertical blur
 	D3D12_COMPUTE_PIPELINE_STATE_DESC vertBlurPso{};
-	vertBlurPso.pRootSignature = mPostProcessRootSignature.Get();
+	vertBlurPso.pRootSignature = mBlurRootSignature.Get();
 	vertBlurPso.CS.pShaderBytecode = mShaders["vertBlurCS"]->GetBufferPointer();
 	vertBlurPso.CS.BytecodeLength = mShaders["vertBlurCS"]->GetBufferSize();
 
@@ -1134,6 +1246,29 @@ void MyGame::BuildPipelineStateObjects()
 	wavesUpdatePso.CS.BytecodeLength = mShaders["wavesUpdateCS"]->GetBufferSize();
 	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&wavesUpdatePso,
 		IID_PPV_ARGS(&mPipelineStateObjects["wavesUpdate"])));
+
+	// PSO for composition of Sobel filter
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC compositePsoDesc = opaquePsoDesc;
+	compositePsoDesc.SampleDesc.Count = 1;
+	compositePsoDesc.pRootSignature   = mSobelRootSignature.Get();
+	compositePsoDesc.DepthStencilState.DepthEnable    = false;
+	compositePsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	compositePsoDesc.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
+
+	compositePsoDesc.VS.pShaderBytecode = mShaders["compositeVS"]->GetBufferPointer();
+	compositePsoDesc.VS.BytecodeLength  = mShaders["compositeVS"]->GetBufferSize();
+	compositePsoDesc.PS.pShaderBytecode = mShaders["compositePS"]->GetBufferPointer();
+	compositePsoDesc.PS.BytecodeLength  = mShaders["compositePS"]->GetBufferSize();
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&compositePsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["composite"].GetAddressOf())));
+
+	// PSO for Sobel Filter
+	D3D12_COMPUTE_PIPELINE_STATE_DESC sobelPso{};
+	sobelPso.pRootSignature = mSobelRootSignature.Get();
+	sobelPso.CS.pShaderBytecode = mShaders["sobelCS"]->GetBufferPointer();
+	sobelPso.CS.BytecodeLength = mShaders["sobelCS"]->GetBufferSize();
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&sobelPso,
+		IID_PPV_ARGS(mPipelineStateObjects["sobel"].GetAddressOf())));
 }
 
 void MyGame::BuildFrameResources()
@@ -1209,8 +1344,6 @@ void MyGame::BuildRenderItems()
 	wave->IndexCount         = wave->Geometry->DrawArgs["grid"].IndexCount;
 	wave->StartIndexLocation = wave->Geometry->DrawArgs["grid"].StartIndexLocation;
 	wave->BaseVertexLocation = wave->Geometry->DrawArgs["grid"].BaseVertexLocation;
-
-	mWavesRenderItem = wave.get();
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)].push_back(wave.get());
 
@@ -1290,7 +1423,7 @@ void MyGame::DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, const st
 		cmdList->IASetIndexBuffer(&ibv);
 		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(item->Material->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();
@@ -1322,7 +1455,7 @@ void MyGame::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vect
 		cmdList->IASetIndexBuffer(nullptr);
 		cmdList->IASetPrimitiveTopology(item->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvUavDescHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(item->Material->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCbvAdr = objectCb->GetGPUVirtualAddress();

@@ -218,6 +218,13 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 		&rtvHeapDesc,
 		IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
 void D3DApp::OnResize()
@@ -233,6 +240,7 @@ void D3DApp::OnResize()
 	{
 		ThrowIfFailed(swapChainBuffer.Reset());
 	}
+	mDepthStencilBuffer.Reset();
 
 	ThrowIfFailed(mSwapChain->ResizeBuffers(
 		SWAP_CHAIN_BUFFER_COUNT,
@@ -241,16 +249,36 @@ void D3DApp::OnResize()
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
 	mCurrBackBuffer = 0;
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hRtvHeap(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
 
 	for (int i = 0; i < SWAP_CHAIN_BUFFER_COUNT; ++i)
 	{
-		mSwapChain->GetBuffer(i,
-			IID_PPV_ARGS(mSwapChainBuffer[i].GetAddressOf()));
+		mSwapChain->GetBuffer(i,IID_PPV_ARGS(mSwapChainBuffer[i].GetAddressOf()));
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(),
-			nullptr, rtvHeapHandle);
-		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
+			nullptr, hRtvHeap);
+		hRtvHeap.Offset(1, mRtvDescriptorSize);
 	}
+
+	auto texDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, 
+		mClientWidth, mClientHeight);
+	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	const auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	const auto clearValue = CD3DX12_CLEAR_VALUE(mDepthStencilFormat, 1.0f, 0);
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&heapProp, 
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc, 
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&clearValue,
+		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Format = mDepthStencilFormat;
+	md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(),
+		&dsvDesc, GetBackBufferDsv());
 
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
@@ -424,12 +452,17 @@ ID3D12Resource* D3DApp::GetCurrentBackBuffer() const
 	return mSwapChainBuffer[mCurrBackBuffer].Get();
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::GetCurrentBackBufferView() const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::GetCurrentBackBufferRtv() const
 {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
 		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
 		mCurrBackBuffer,
 		mRtvDescriptorSize);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::GetBackBufferDsv() const
+{
+	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 }
 
 void D3DApp::CalculateFrameStats() const

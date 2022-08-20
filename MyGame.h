@@ -6,6 +6,8 @@
 #include "FrameResource.h"
 #include "Waves.h"
 #include "BlurFilter.h"
+#include "MidwayTexture.h"
+#include "SobelFilter.h"
 
 #ifdef _DEBUG
 	#define VISUALIZE_NORMAL
@@ -101,8 +103,9 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaRenderTarget;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMsaaDepthStencil;
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaRtvDescHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMsaaDsvDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvUavDescHeap;
 
 	unsigned int mSampleCount = 0;
 
@@ -111,10 +114,9 @@ private:
 	int mCurrFrameResourceIndex = 0;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> mPostProcessRootSignature;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mBlurRootSignature;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mSobelRootSignature;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mWavesRootSignature;
-
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvSrvUavDescriptorHeap;
 
 	std::unordered_map<std::string, std::unique_ptr<DX::MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<DX::Material>> mMaterials;
@@ -125,12 +127,15 @@ private:
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout{};
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout{};
 
-	RenderItem* mWavesRenderItem = nullptr;
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
 
 	std::unique_ptr<DX::Waves> mWaves{};
+
 	std::unique_ptr<DX::BlurFilter> mBlurFilter{};
+
+	std::unique_ptr<DX::SobelFilter> mSobelFilter{};
+	std::unique_ptr<DX::MidwayTexture> mMsaaResolveDest;
 
 	DX::PassConstants mMainPassConstBuff;
 

@@ -1,17 +1,14 @@
 ﻿#include "BlurFilter.h"
 
 DX::BlurFilter::BlurFilter(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format) :
-	md3dDevice(device),
-	mWidth(width),
-	mHeight(height),
-	mFormat(format)
+	Filter(device, width, height, format)
 {
-	BuildResources();
+	BlurFilter::BuildResources();
 }
 
-std::vector<float> DX::BlurFilter::CalcGaussWeight(float sigma, int& radius)
+std::vector<float> DX::BlurFilter::CalcGaussWeight(const float sigma, int& radius)
 {
-	int blurR = static_cast<int>(ceil(2.0f * sigma));
+	const int blurR = static_cast<int>(ceil(2.0f * sigma));
 	assert(blurR <= MAX_BLUR_RADIUS);
 
 	// G(x) = exp(- x^2 / (2 * sigma ^ 2))
@@ -98,8 +95,8 @@ void DX::BlurFilter::BuildResources()
 
 void DX::BlurFilter::BuildDescriptors(
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc, 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDesc, 
-	UINT descSize)
+	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDesc,
+	const UINT descSize)
 {
 	mBlur0CpuSrv = hCpuDesc;
 	mBlur0CpuUav = hCpuDesc.Offset(1, descSize);
@@ -112,18 +109,6 @@ void DX::BlurFilter::BuildDescriptors(
 	mBlur1GpuUav = hGpuDesc.Offset(1, descSize);
 
 	BuildDescriptors();
-}
-
-void DX::BlurFilter::OnResize(UINT width, UINT height)
-{
-	if (mWidth != width || mHeight != height)
-	{
-		mWidth = width;
-		mHeight = height;
-
-		BuildResources();
-		BuildDescriptors();
-	}
 }
 
 void DX::BlurFilter::Execute(

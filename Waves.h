@@ -37,7 +37,7 @@ namespace DX
 		void Disturb(ID3D12GraphicsCommandList* cmdList, ID3D12RootSignature* rootSig, ID3D12PipelineState* pso,
 					 UINT i, UINT j, float magnitude) const;
 
-		static constexpr int DESCRIPTOR_COUNT = 6;
+		static constexpr int SRV_UAV_COUNT = 6;
 
 	private:
 		UINT mNumRows;

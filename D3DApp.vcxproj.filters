@@ -34,6 +34,9 @@
     <Filter Include="Shader\waves">
       <UniqueIdentifier>{cb45ee81-7c66-42bf-9782-b447d63ef677}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\sobel">
+      <UniqueIdentifier>{ff81f537-dcac-4d1f-a1f5-8d31f77e29d6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -61,6 +64,15 @@
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Waves.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Filter.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="SobelFilter.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="MidwayTexture.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -93,6 +105,15 @@
       <Filter>Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="Waves.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Filter.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="SobelFilter.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MidwayTexture.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
   </ItemGroup>
@@ -154,6 +175,15 @@
     <FxCompile Include="Shader\wavesVS.hlsl">
       <Filter>Shader\waves</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\sobelCS.hlsl">
+      <Filter>Shader\sobel</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\compositeVS.hlsl">
+      <Filter>Shader\sobel</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\compositePS.hlsl">
+      <Filter>Shader\sobel</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -179,6 +209,9 @@
     </None>
     <None Include="Shader\waveSim.hlsli">
       <Filter>Shader\waves</Filter>
+    </None>
+    <None Include="Shader\composite.hlsli">
+      <Filter>Shader\sobel</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
