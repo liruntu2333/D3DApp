@@ -37,6 +37,9 @@
     <Filter Include="Shader\sobel">
       <UniqueIdentifier>{ff81f537-dcac-4d1f-a1f5-8d31f77e29d6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\tessellation">
+      <UniqueIdentifier>{179fafcc-d892-4029-aa45-c36b1c5bc24d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyGame.cpp">
@@ -184,6 +187,18 @@
     <FxCompile Include="Shader\compositePS.hlsl">
       <Filter>Shader\sobel</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\tessVS.hlsl">
+      <Filter>Shader\tessellation</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\tessHS.hlsl">
+      <Filter>Shader\tessellation</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\tessDS.hlsl">
+      <Filter>Shader\tessellation</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\tessPS.hlsl">
+      <Filter>Shader\tessellation</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\color.hlsli">
@@ -212,6 +227,9 @@
     </None>
     <None Include="Shader\composite.hlsli">
       <Filter>Shader\sobel</Filter>
+    </None>
+    <None Include="Shader\tessellation.hlsli">
+      <Filter>Shader\tessellation</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

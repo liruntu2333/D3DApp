@@ -17,7 +17,7 @@ using namespace DX;
 
 namespace 
 {
-	const float* gRenderTargetCleanValue = DirectX::Colors::OrangeRed.f;
+	const float* gRenderTargetCleanValue = DirectX::Colors::Black.f;
 }
 
 MyGame::MyGame(HINSTANCE hInstance) : D3DApp(hInstance) {}
@@ -71,6 +71,7 @@ bool MyGame::Initialize()
 	BuildWavesGeometry();
 	BuildTreeSpriteGeometry();
 	BuildSphereGeometry();
+	BuildQuadPatchGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -245,6 +246,9 @@ void MyGame::Draw(const GameTimer& gameTimer)
 
 		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)]);
 
+		mCommandList->SetPipelineState(mPipelineStateObjects["tess"].Get());
+		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::Tessellation)]);
+
 		mCommandList->SetPipelineState(mPipelineStateObjects["alphaTested"].Get());
 		DrawIndexedRenderItems(mCommandList.Get(), mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)]);
 
@@ -363,7 +367,7 @@ void MyGame::OnMouseMove(WPARAM btnState, int x, int y)
 
 		mRadius += dx - dy;
 
-		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+		mRadius = MathHelper::Clamp(mRadius, 5.0f, 200.0f);
 	}
 
 	mLastMousePos.x = x;
@@ -506,7 +510,7 @@ void MyGame::UpdateMainPassConstBuffs(const GameTimer& gameTimer)
 	const auto sunDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
 	XMStoreFloat3(&mMainPassConstBuff.Lights[0].Direction, sunDir);
 
-	mMainPassConstBuff.Lights[0].Intensity = { 0.6f, 0.6f, 0.6f };
+	mMainPassConstBuff.Lights[0].Intensity = { 0.9f, 0.9f, 0.9f };
 	mMainPassConstBuff.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
 	mMainPassConstBuff.Lights[1].Intensity = { 0.3f, 0.3f, 0.3f };
 	mMainPassConstBuff.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
@@ -633,66 +637,29 @@ void MyGame::BuildDescriptorHeaps()
 
 void MyGame::LoadTextures()
 {
-	auto grass = std::make_unique<Texture>();
-	grass->Name = "grassTex";
-	grass->FileName = L"Textures/grass12.dds";
+	const std::unordered_map<std::string, std::wstring> tbl =
 	{
+		{"grassTex",		L"Textures/grass12.dds"},
+		{"waterTex",		L"Textures/water1.dds"},
+		{"fenceTex",		L"Textures/WireFence.dds"},
+		{"treeArrayTex",	L"Textures/treeArray2.dds"},
+	};
+	
+	for (const auto& [ name,fileName ] : tbl)
+	{
+		auto tex = std::make_unique<Texture>();
+		tex->Name = name;
+		tex->FileName = fileName;
 		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
 		upload.Begin();
 		ThrowIfFailed(CreateDDSTextureFromFile(
 			md3dDevice.Get(), upload,
-			grass->FileName.c_str(),
-			grass->Resource.GetAddressOf()));
+			tex->FileName.c_str(),
+			tex->Resource.GetAddressOf()));
 		auto finished = upload.End(mCommandQueue.Get());
 		finished.wait();
+		mTextures[tex->Name] = std::move(tex);
 	}
-
-	auto water = std::make_unique<Texture>();
-	water->Name = "waterTex";
-	water->FileName = L"Textures/juice.dds";
-	{
-		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
-		upload.Begin();
-		ThrowIfFailed(CreateDDSTextureFromFile(
-			md3dDevice.Get(), upload,
-			water->FileName.c_str(),
-			water->Resource.GetAddressOf()));
-		auto finished = upload.End(mCommandQueue.Get());
-		finished.wait();
-	}
-
-	auto fence = std::make_unique<Texture>();
-	fence->Name = "fenceTex";
-	fence->FileName = L"Textures/WireFence.dds";
-	{
-		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
-		upload.Begin();
-		ThrowIfFailed(CreateDDSTextureFromFile(
-			md3dDevice.Get(), upload,
-			fence->FileName.c_str(),
-			fence->Resource.GetAddressOf()));
-		auto finished = upload.End(mCommandQueue.Get());
-		finished.wait();
-	}
-
-	auto trees = std::make_unique<Texture>();
-	trees->Name = "treeArrayTex";
-	trees->FileName = L"Textures/treeArray2.dds";
-	{
-		DirectX::ResourceUploadBatch upload(md3dDevice.Get());
-		upload.Begin();
-		ThrowIfFailed(CreateDDSTextureFromFile(
-			md3dDevice.Get(), upload,
-			trees->FileName.c_str(),
-			trees->Resource.GetAddressOf()));
-		auto finished = upload.End(mCommandQueue.Get());
-		finished.wait();
-	}
-
-	mTextures[grass->Name] = std::move(grass);
-	mTextures[water->Name] = std::move(water);
-	mTextures[fence->Name] = std::move(fence);
-	mTextures[trees->Name] = std::move(trees);
 }
 
 void MyGame::BuildRootSignature()
@@ -872,6 +839,11 @@ void MyGame::BuildShadersAndInputLayout()
 	mShaders["compositeVS"] = LoadBinary(L"CompiledShaders/compositeVS.cso");
 	mShaders["compositePS"] = LoadBinary(L"CompiledShaders/compositePS.cso");
 
+	mShaders["tessVS"] = LoadBinary(L"CompiledShaders/tessVS.cso");
+	mShaders["tessHS"] = LoadBinary(L"CompiledShaders/tessHS.cso");
+	mShaders["tessDS"] = LoadBinary(L"CompiledShaders/tessDS.cso");
+	mShaders["tessPS"] = LoadBinary(L"CompiledShaders/tessPS.cso");
+
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Position),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -883,6 +855,11 @@ void MyGame::BuildShadersAndInputLayout()
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"SIZE",     0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	mQuadInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 }
 
@@ -1089,6 +1066,53 @@ void MyGame::BuildTreeSpriteGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
+void MyGame::BuildQuadPatchGeometry()
+{
+	using namespace DirectX;
+
+	const std::array<XMFLOAT3, 4> vertices =
+	{
+		XMFLOAT3(-80.0f, 0.0f, +80.0f),
+		XMFLOAT3(+80.0f, 0.0f, +80.0f),
+		XMFLOAT3(-80.0f, 0.0f, -80.0f),
+		XMFLOAT3(+80.0f, 0.0f, -80.0f)
+	};
+
+	std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(XMFLOAT3);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "quadpatchGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride     = sizeof(XMFLOAT3);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat          = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize  = ibByteSize;
+
+	SubmeshGeometry quadSubmesh;
+	quadSubmesh.IndexCount         = 4;
+	quadSubmesh.StartIndexLocation = 0;
+	quadSubmesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["quadpatch"] = quadSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
+}
+
 void MyGame::BuildPipelineStateObjects()
 {
 	// PSO for opaque objects.
@@ -1117,6 +1141,25 @@ void MyGame::BuildPipelineStateObjects()
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["opaque"].GetAddressOf())));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC tessPsoDesc = opaquePsoDesc;
+	tessPsoDesc.InputLayout.pInputElementDescs = mQuadInputLayout.data();
+	tessPsoDesc.InputLayout.NumElements        = mQuadInputLayout.size();
+	tessPsoDesc.VS.pShaderBytecode             = mShaders["tessVS"]->GetBufferPointer();
+	tessPsoDesc.VS.BytecodeLength              = mShaders["tessVS"]->GetBufferSize();
+	tessPsoDesc.HS.pShaderBytecode             = mShaders["tessHS"]->GetBufferPointer();
+	tessPsoDesc.HS.BytecodeLength              = mShaders["tessHS"]->GetBufferSize();
+	tessPsoDesc.DS.pShaderBytecode             = mShaders["tessDS"]->GetBufferPointer();
+	tessPsoDesc.DS.BytecodeLength              = mShaders["tessDS"]->GetBufferSize();
+	tessPsoDesc.PS.pShaderBytecode             = mShaders["tessPS"]->GetBufferPointer();
+	tessPsoDesc.PS.BytecodeLength              = mShaders["tessPS"]->GetBufferSize();
+
+	tessPsoDesc.PrimitiveTopologyType                 = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+	tessPsoDesc.RasterizerState.FillMode              = D3D12_FILL_MODE_WIREFRAME;
+	tessPsoDesc.RasterizerState.AntialiasedLineEnable = TRUE;
+
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&tessPsoDesc,
+		IID_PPV_ARGS(mPipelineStateObjects["tess"].GetAddressOf())));
 
 #ifdef VISUALIZE_NORMAL
 	// PSO for visualizing normals
@@ -1358,7 +1401,7 @@ void MyGame::BuildRenderItems()
 	land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
 	land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
+	//mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
 
 	auto sphere = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&sphere->World, XMMatrixTranslation(3.0f, 5.0f, -9.0f));
@@ -1384,6 +1427,18 @@ void MyGame::BuildRenderItems()
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)].push_back(treeSprite.get());
 
+	auto quadPatch = std::make_unique<RenderItem>();
+	quadPatch->World              = MathHelper::Identity4x4();
+	quadPatch->TexTransform       = MathHelper::Identity4x4();
+	quadPatch->ObjConstBuffIndex  = 0;
+	quadPatch->Material           = mMaterials["grass"].get();
+	quadPatch->Geometry           = mGeometries["quadpatchGeo"].get();
+	quadPatch->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	quadPatch->IndexCount         = quadPatch->Geometry->DrawArgs["quadpatch"].IndexCount;
+	quadPatch->StartIndexLocation = quadPatch->Geometry->DrawArgs["quadpatch"].StartIndexLocation;
+	quadPatch->BaseVertexLocation = quadPatch->Geometry->DrawArgs["quadpatch"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Tessellation].push_back(quadPatch.get());
+
 #ifdef VISUALIZE_NORMAL
 
 	//auto waveNorm = std::make_unique<RenderItem>(*wave);
@@ -1403,9 +1458,10 @@ void MyGame::BuildRenderItems()
 #endif
 
 	mRenderItems.push_back(std::move(wave));
-	mRenderItems.push_back(std::move(land));
+	//mRenderItems.push_back(std::move(land));
 	mRenderItems.push_back(std::move(sphere));	
-	mRenderItems.push_back(std::move(treeSprite));	
+	mRenderItems.push_back(std::move(treeSprite));
+	mRenderItems.push_back(std::move(quadPatch));
 }
 
 void MyGame::DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const

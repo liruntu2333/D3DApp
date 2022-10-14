@@ -10,7 +10,7 @@
 #include "SobelFilter.h"
 
 #ifdef _DEBUG
-	#define VISUALIZE_NORMAL
+	//#define VISUALIZE_NORMAL
 #endif
 
 struct RenderItem
@@ -36,6 +36,7 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	Tessellation,
 	Transparent,
 	AlphaTested,
 	AlphaTestedTreeSprite,
@@ -85,6 +86,7 @@ private:
 	void BuildWavesGeometry();
 	void BuildSphereGeometry();
 	void BuildTreeSpriteGeometry();
+	void BuildQuadPatchGeometry();
 	void BuildPipelineStateObjects();
 	void BuildFrameResources();
 	void BuildMaterials();
@@ -126,15 +128,14 @@ private:
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout{};
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout{};
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mQuadInputLayout{};
 
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems{};
 	std::vector<RenderItem*> mRenderItemLayer[static_cast<int>(RenderLayer::Count)]{};
 
-	std::unique_ptr<DX::Waves> mWaves{};
-
-	std::unique_ptr<DX::BlurFilter> mBlurFilter{};
-
-	std::unique_ptr<DX::SobelFilter> mSobelFilter{};
+	std::unique_ptr<DX::Waves>         mWaves{};
+	std::unique_ptr<DX::BlurFilter>    mBlurFilter{};
+	std::unique_ptr<DX::SobelFilter>   mSobelFilter{};
 	std::unique_ptr<DX::MidwayTexture> mMsaaResolveDest;
 
 	DX::PassConstants mMainPassConstBuff;
