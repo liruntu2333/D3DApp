@@ -12,7 +12,7 @@ PatchTess CalcHSPatchConstants(
     float d = distance(centerW, gEyePosW);
 
     const float d0 = 20.0f;
-    const float d1 = 200.0f;
+    const float d1 = 500.0f;
     float tess = 64.0f * saturate((d1 - d) / (d1 - d0));
 
 	op.EdgeTess[0] = 
@@ -29,7 +29,7 @@ PatchTess CalcHSPatchConstants(
 }
 
 [domain("quad")]
-[partitioning("integer")]
+[partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("CalcHSPatchConstants")]

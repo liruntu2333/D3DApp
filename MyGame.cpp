@@ -1155,8 +1155,6 @@ void MyGame::BuildPipelineStateObjects()
 	tessPsoDesc.PS.BytecodeLength              = mShaders["tessPS"]->GetBufferSize();
 
 	tessPsoDesc.PrimitiveTopologyType                 = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
-	tessPsoDesc.RasterizerState.FillMode              = D3D12_FILL_MODE_WIREFRAME;
-	tessPsoDesc.RasterizerState.AntialiasedLineEnable = TRUE;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&tessPsoDesc,
 		IID_PPV_ARGS(mPipelineStateObjects["tess"].GetAddressOf())));
@@ -1395,19 +1393,19 @@ void MyGame::BuildRenderItems()
 	mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)].push_back(wave.get());
 	mRenderItems.push_back(std::move(wave));
 	
-	auto land = std::make_unique<RenderItem>();
-	land->World              = MathHelper::Identity4x4();
-	XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
-	land->ObjConstBuffIndex  = objConstBuffIndex++;
-	land->Material           = mMaterials["grass"].get();
-	land->Geometry           = mGeometries["landGeo"].get();
-	land->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	land->IndexCount         = land->Geometry->DrawArgs["grid"].IndexCount;
-	land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
-	land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
+	//auto land = std::make_unique<RenderItem>();
+	//land->World              = MathHelper::Identity4x4();
+	//XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
+	//land->ObjConstBuffIndex  = objConstBuffIndex++;
+	//land->Material           = mMaterials["grass"].get();
+	//land->Geometry           = mGeometries["landGeo"].get();
+	//land->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	//land->IndexCount         = land->Geometry->DrawArgs["grid"].IndexCount;
+	//land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
+	//land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
 
-	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
-	mRenderItems.push_back(std::move(land));
+	//mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
+	//mRenderItems.push_back(std::move(land));
 	
 	auto sphere = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&sphere->World, XMMatrixTranslation(3.0f, 5.0f, -9.0f));
@@ -1437,7 +1435,7 @@ void MyGame::BuildRenderItems()
 	
 	auto quadPatch = std::make_unique<RenderItem>();
 	quadPatch->World              = MathHelper::Identity4x4();
-	quadPatch->TexTransform       = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&quadPatch->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
 	quadPatch->ObjConstBuffIndex  = objConstBuffIndex++;
 	quadPatch->Material           = mMaterials["grass"].get();
 	quadPatch->Geometry           = mGeometries["quadpatchGeo"].get();
