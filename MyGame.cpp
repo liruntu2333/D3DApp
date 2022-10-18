@@ -1376,11 +1376,15 @@ void MyGame::BuildRenderItems()
 {
 	using namespace DirectX;
 
+	// be careful with member ObjConstBuffIdx
+	int objConstBuffIndex = 0;
+	
 	auto wave = std::make_unique<RenderItem>();
 	wave->World              = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&wave->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	wave->GridSpatialStep = mWaves->GetSpatialStep();
 	wave->DisplacementMapTexelSize = { 1.0f / mWaves->GetColumnCount(), 1.0f / mWaves->GetRowCount() };
-	wave->ObjConstBuffIndex  = 0;
+	wave->ObjConstBuffIndex  = objConstBuffIndex++;
 	wave->Material           = mMaterials["water"].get();
 	wave->Geometry           = mGeometries["waterGeo"].get();
 	wave->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1389,11 +1393,12 @@ void MyGame::BuildRenderItems()
 	wave->BaseVertexLocation = wave->Geometry->DrawArgs["grid"].BaseVertexLocation;
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::GpuWaves)].push_back(wave.get());
-
+	mRenderItems.push_back(std::move(wave));
+	
 	auto land = std::make_unique<RenderItem>();
 	land->World              = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&land->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
-	land->ObjConstBuffIndex  = 1;
+	land->ObjConstBuffIndex  = objConstBuffIndex++;
 	land->Material           = mMaterials["grass"].get();
 	land->Geometry           = mGeometries["landGeo"].get();
 	land->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1401,11 +1406,12 @@ void MyGame::BuildRenderItems()
 	land->StartIndexLocation = land->Geometry->DrawArgs["grid"].StartIndexLocation;
 	land->BaseVertexLocation = land->Geometry->DrawArgs["grid"].BaseVertexLocation;
 
-	//mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
-
+	mRenderItemLayer[static_cast<int>(RenderLayer::Opaque)].push_back(land.get());
+	mRenderItems.push_back(std::move(land));
+	
 	auto sphere = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&sphere->World, XMMatrixTranslation(3.0f, 5.0f, -9.0f));
-	sphere->ObjConstBuffIndex  = 2;
+	sphere->ObjConstBuffIndex  = objConstBuffIndex++;
 	sphere->Material           = mMaterials["wireFence"].get();
 	sphere->Geometry           = mGeometries["sphereGeo"].get();
 	sphere->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1414,10 +1420,11 @@ void MyGame::BuildRenderItems()
 	sphere->BaseVertexLocation = sphere->Geometry->DrawArgs["sphere"].BaseVertexLocation;
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTested)].push_back(sphere.get());
-
+	mRenderItems.push_back(std::move(sphere));
+	
 	auto treeSprite = std::make_unique<RenderItem>();
 	treeSprite->World              = MathHelper::Identity4x4();
-	treeSprite->ObjConstBuffIndex  = 3;
+	treeSprite->ObjConstBuffIndex  = objConstBuffIndex++;
 	treeSprite->Material           = mMaterials["treeSprite"].get();
 	treeSprite->Geometry           = mGeometries["treeSpriteGeo"].get();
 	treeSprite->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
@@ -1426,18 +1433,21 @@ void MyGame::BuildRenderItems()
 	treeSprite->BaseVertexLocation = treeSprite->Geometry->DrawArgs["points"].BaseVertexLocation;
 
 	mRenderItemLayer[static_cast<int>(RenderLayer::AlphaTestedTreeSprite)].push_back(treeSprite.get());
-
+	mRenderItems.push_back(std::move(treeSprite));
+	
 	auto quadPatch = std::make_unique<RenderItem>();
 	quadPatch->World              = MathHelper::Identity4x4();
 	quadPatch->TexTransform       = MathHelper::Identity4x4();
-	quadPatch->ObjConstBuffIndex  = 0;
+	quadPatch->ObjConstBuffIndex  = objConstBuffIndex++;
 	quadPatch->Material           = mMaterials["grass"].get();
 	quadPatch->Geometry           = mGeometries["quadpatchGeo"].get();
 	quadPatch->PrimitiveType      = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
 	quadPatch->IndexCount         = quadPatch->Geometry->DrawArgs["quadpatch"].IndexCount;
 	quadPatch->StartIndexLocation = quadPatch->Geometry->DrawArgs["quadpatch"].StartIndexLocation;
 	quadPatch->BaseVertexLocation = quadPatch->Geometry->DrawArgs["quadpatch"].BaseVertexLocation;
+
 	mRenderItemLayer[(int)RenderLayer::Tessellation].push_back(quadPatch.get());
+	mRenderItems.push_back(std::move(quadPatch));
 
 #ifdef VISUALIZE_NORMAL
 
@@ -1456,12 +1466,6 @@ void MyGame::BuildRenderItems()
 	mRenderItems.push_back(std::move(sphereNorm));
 
 #endif
-
-	mRenderItems.push_back(std::move(wave));
-	//mRenderItems.push_back(std::move(land));
-	mRenderItems.push_back(std::move(sphere));	
-	mRenderItems.push_back(std::move(treeSprite));
-	mRenderItems.push_back(std::move(quadPatch));
 }
 
 void MyGame::DrawIndexedRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems) const
